@@ -95,4 +95,8 @@ private:
     bool animate_;
     /// Group optimization flag.
     bool useGroups_;
+
+	PODVector<StaticModelGroup *> Groups;
+	bool pre_update_group;
+	void threaded_update_staticmodelgroup();
 };
