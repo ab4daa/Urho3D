@@ -311,7 +311,7 @@ void Octant::GetDrawablesOnlyInternal(RayOctreeQuery& query, PODVector<Drawable*
 Octree::Octree(Context* context) :
     Component(context),
     Octant(BoundingBox(-DEFAULT_OCTREE_SIZE, DEFAULT_OCTREE_SIZE), 0, nullptr, this),
-    numLevels_(DEFAULT_OCTREE_LEVELS)
+    numLevels_(DEFAULT_OCTREE_LEVELS), rayQueryDrawables_parallel(GetSubsystem<WorkQueue>()->GetNumThreads() + 1)
 {
     // If the engine is running headless, subscribe to RenderUpdate events for manually updating the octree
     // to allow raycasts and animation update
@@ -590,6 +590,46 @@ void Octree::HandleRenderUpdate(StringHash eventType, VariantMap& eventData)
     frame.camera_ = nullptr;
 
     Update(frame);
+}
+
+void Octree::RaycastSingle(RayOctreeQuery& query, unsigned threadIdx) const
+{
+	PODVector<Drawable*> &rayQueryDrawables = rayQueryDrawables_parallel[threadIdx];
+
+	query.result_.Clear();
+	rayQueryDrawables.Clear();
+	GetDrawablesOnlyInternal(query, rayQueryDrawables);
+
+	// Sort by increasing hit distance to AABB
+	for (PODVector<Drawable*>::Iterator i = rayQueryDrawables.Begin(); i != rayQueryDrawables.End(); ++i)
+	{
+		Drawable* drawable = *i;
+		drawable->SetSortValue(query.ray_.HitDistance(drawable->GetWorldBoundingBox()));
+	}
+
+	Sort(rayQueryDrawables.Begin(), rayQueryDrawables.End(), CompareDrawables);
+
+	// Then do the actual test according to the query, and early-out as possible
+	float closestHit = M_INFINITY;
+	for (PODVector<Drawable*>::Iterator i = rayQueryDrawables.Begin(); i != rayQueryDrawables.End(); ++i)
+	{
+		Drawable* drawable = *i;
+		if (drawable->GetSortValue() < Min(closestHit, query.maxDistance_))
+		{
+			unsigned oldSize = query.result_.Size();
+			drawable->ProcessRayQuery(query, query.result_);
+			if (query.result_.Size() > oldSize)
+				closestHit = Min(closestHit, query.result_.Back().distance_);
+		}
+		else
+			break;
+	}
+
+	if (query.result_.Size() > 1)
+	{
+		Sort(query.result_.Begin(), query.result_.End(), CompareRayQueryResults);
+		query.result_.Resize(1);
+	}
 }
 
 }

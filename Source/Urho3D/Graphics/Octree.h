@@ -187,6 +187,8 @@ public:
     void Raycast(RayOctreeQuery& query) const;
     /// Return the closest drawable object by a ray query.
     void RaycastSingle(RayOctreeQuery& query) const;
+    /// Return the closest drawable object by a ray query in a thread.
+    void RaycastSingle(RayOctreeQuery& query, unsigned threadIdx) const;
 
     /// Return subdivision levels.
     unsigned GetNumLevels() const { return numLevels_; }
@@ -212,6 +214,8 @@ private:
     Mutex octreeMutex_;
     /// Ray query temporary list of drawables.
     mutable PODVector<Drawable*> rayQueryDrawables_;
+    /// Parallel ray query temporary list of drawables.
+    mutable Vector< PODVector<Drawable*> > rayQueryDrawables_parallel;
     /// Subdivision level.
     unsigned numLevels_;
 };

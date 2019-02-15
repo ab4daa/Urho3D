@@ -22,6 +22,7 @@
 
 #include <Urho3D/Core/CoreEvents.h>
 #include <Urho3D/Core/Profiler.h>
+#include <Urho3D/Core/WorkQueue.h>
 #include <Urho3D/Engine/Engine.h>
 #include <Urho3D/Graphics/Camera.h>
 #include <Urho3D/Graphics/Graphics.h>
@@ -47,7 +48,8 @@ URHO3D_DEFINE_APPLICATION_MAIN(HugeObjectCount)
 HugeObjectCount::HugeObjectCount(Context* context) :
     Sample(context),
     animate_(false),
-    useGroups_(false)
+    useGroups_(false),
+	pre_update_group(false)
 {
 }
 
@@ -127,6 +129,7 @@ void HugeObjectCount::CreateScene()
 
         // Create StaticModelGroups in the scene
         StaticModelGroup* lastGroup = nullptr;
+        Groups.Clear();
 
         for (int y = -125; y < 125; ++y)
         {
@@ -140,6 +143,7 @@ void HugeObjectCount::CreateScene()
                     Node* boxGroupNode = scene_->CreateChild("BoxGroup");
                     lastGroup = boxGroupNode->CreateComponent<StaticModelGroup>();
                     lastGroup->SetModel(cache->GetResource<Model>("Models/Box.mdl"));
+					Groups.Push(lastGroup);
                 }
 
                 Node* boxNode = scene_->CreateChild("Box");
@@ -171,7 +175,8 @@ void HugeObjectCount::CreateInstructions()
     instructionText->SetText(
         "Use WASD keys and mouse/touch to move\n"
         "Space to toggle animation\n"
-        "G to toggle object group optimization"
+        "G to toggle object group optimization\n"
+		"T to toggle speed up static model group"
     );
     instructionText->SetFont(cache->GetResource<Font>("Fonts/Anonymous Pro.ttf"), 15);
     // The text has multiple rows. Center them in relation to each other
@@ -255,6 +260,9 @@ void HugeObjectCount::HandleUpdate(StringHash eventType, VariantMap& eventData)
     if (input->GetKeyPress(KEY_SPACE))
         animate_ = !animate_;
 
+	if (input->GetKeyPress(KEY_T))
+		pre_update_group = !pre_update_group;
+
     // Toggle grouped / ungrouped mode
     if (input->GetKeyPress(KEY_G))
     {
@@ -268,4 +276,54 @@ void HugeObjectCount::HandleUpdate(StringHash eventType, VariantMap& eventData)
     // Animate scene if enabled
     if (animate_)
         AnimateObjects(timeStep);
+
+	if (useGroups_ && pre_update_group)
+		threaded_update_staticmodelgroup();
+}
+
+void UpdateStaticModelGroupWork(const WorkItem* item, unsigned threadIndex)
+{
+	StaticModelGroup** start = reinterpret_cast<StaticModelGroup**>(item->start_);
+	StaticModelGroup** end = reinterpret_cast<StaticModelGroup**>(item->end_);
+
+	while (start != end)
+	{
+		StaticModelGroup* smg = *start;
+		if (smg)
+			smg->GetWorldBoundingBox();
+		++start;
+	}
+}
+
+/*Because knowledge of each instance directly under scene node, the StaticModelGroups can be updated multi-threaded
+Otherwise, make sure parent nodes of instances are not dirty, then update StaticModelGroups multi-threaded
+*/
+void HugeObjectCount::threaded_update_staticmodelgroup()
+{
+	WorkQueue* queue = GetSubsystem<WorkQueue>();
+
+	int numWorkItems = queue->GetNumThreads() + 1; // Worker threads + main thread
+	int drawablesPerItem = Max((int)(Groups.Size() / numWorkItems), 1);
+
+	PODVector<StaticModelGroup*>::Iterator start = Groups.Begin();
+	// Create a work item for each thread
+	for (int i = 0; i < numWorkItems; ++i)
+	{
+		SharedPtr<WorkItem> item = queue->GetFreeItem();
+		item->priority_ = M_MAX_UNSIGNED;
+		item->workFunction_ = UpdateStaticModelGroupWork;
+		item->aux_ = NULL;
+
+		PODVector<StaticModelGroup*>::Iterator end = Groups.End();
+		if (i < numWorkItems - 1 && end - start > drawablesPerItem)
+			end = start + drawablesPerItem;
+
+		item->start_ = &(*start);
+		item->end_ = &(*end);
+		queue->AddWorkItem(item);
+
+		start = end;
+	}
+
+	queue->Complete(M_MAX_UNSIGNED);
 }
