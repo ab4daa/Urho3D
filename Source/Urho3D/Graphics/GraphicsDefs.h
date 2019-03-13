@@ -78,6 +78,7 @@ enum BlendMode
     BLEND_INVDESTALPHA,
     BLEND_SUBTRACT,
     BLEND_SUBTRACTALPHA,
+	BLEND_ALPHARGB,			//does not work in D3D9
     MAX_BLENDMODES
 };
 

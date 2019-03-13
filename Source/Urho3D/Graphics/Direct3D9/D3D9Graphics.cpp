@@ -126,7 +126,8 @@ static const DWORD d3dBlendEnable[] =
     TRUE,
     TRUE,
     TRUE,
-    TRUE
+	TRUE,
+	TRUE		//dummy
 };
 
 static const D3DBLEND d3dSrcBlend[] =
@@ -140,6 +141,7 @@ static const D3DBLEND d3dSrcBlend[] =
     D3DBLEND_INVDESTALPHA,
     D3DBLEND_ONE,
     D3DBLEND_SRCALPHA,
+	D3DBLEND_SRCALPHA		//dummy
 };
 
 static const D3DBLEND d3dDestBlend[] =
@@ -152,7 +154,8 @@ static const D3DBLEND d3dDestBlend[] =
     D3DBLEND_INVSRCALPHA,
     D3DBLEND_DESTALPHA,
     D3DBLEND_ONE,
-    D3DBLEND_ONE
+    D3DBLEND_ONE,
+	D3DBLEND_INVSRCALPHA		//dummy
 };
 
 static const D3DBLENDOP d3dBlendOp[] =
@@ -165,7 +168,8 @@ static const D3DBLENDOP d3dBlendOp[] =
     D3DBLENDOP_ADD,
     D3DBLENDOP_ADD,
     D3DBLENDOP_REVSUBTRACT,
-    D3DBLENDOP_REVSUBTRACT
+    D3DBLENDOP_REVSUBTRACT,
+	D3DBLENDOP_ADD			//dummy
 };
 
 static const D3DCULL d3dCullMode[] =

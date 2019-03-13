@@ -82,7 +82,8 @@ static const DWORD d3dBlendEnable[] =
     TRUE,
     TRUE,
     TRUE,
-    TRUE
+	TRUE,
+	TRUE
 };
 
 static const D3D11_BLEND d3dSrcBlend[] =
@@ -96,6 +97,7 @@ static const D3D11_BLEND d3dSrcBlend[] =
     D3D11_BLEND_INV_DEST_ALPHA,
     D3D11_BLEND_ONE,
     D3D11_BLEND_SRC_ALPHA,
+	D3D11_BLEND_SRC_ALPHA
 };
 
 static const D3D11_BLEND d3dDestBlend[] =
@@ -108,7 +110,36 @@ static const D3D11_BLEND d3dDestBlend[] =
     D3D11_BLEND_INV_SRC_ALPHA,
     D3D11_BLEND_DEST_ALPHA,
     D3D11_BLEND_ONE,
-    D3D11_BLEND_ONE
+    D3D11_BLEND_ONE,
+	D3D11_BLEND_INV_SRC_ALPHA
+};
+
+static const D3D11_BLEND d3dSrcBlendAlpha[] =
+{
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_DEST_COLOR,
+	D3D11_BLEND_SRC_ALPHA,
+	D3D11_BLEND_SRC_ALPHA,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_INV_DEST_ALPHA,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_SRC_ALPHA,
+	D3D11_BLEND_ZERO
+};
+
+static const D3D11_BLEND d3dDestBlendAlpha[] =
+{
+	D3D11_BLEND_ZERO,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_ZERO,
+	D3D11_BLEND_INV_SRC_ALPHA,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_INV_SRC_ALPHA,
+	D3D11_BLEND_DEST_ALPHA,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_ONE
 };
 
 static const D3D11_BLEND_OP d3dBlendOp[] =
@@ -121,7 +152,8 @@ static const D3D11_BLEND_OP d3dBlendOp[] =
     D3D11_BLEND_OP_ADD,
     D3D11_BLEND_OP_ADD,
     D3D11_BLEND_OP_REV_SUBTRACT,
-    D3D11_BLEND_OP_REV_SUBTRACT
+    D3D11_BLEND_OP_REV_SUBTRACT,
+	D3D11_BLEND_OP_ADD
 };
 
 static const D3D11_STENCIL_OP d3dStencilOp[] =
@@ -2444,8 +2476,8 @@ void Graphics::PrepareDraw()
                 stateDesc.RenderTarget[0].SrcBlend = d3dSrcBlend[blendMode_];
                 stateDesc.RenderTarget[0].DestBlend = d3dDestBlend[blendMode_];
                 stateDesc.RenderTarget[0].BlendOp = d3dBlendOp[blendMode_];
-                stateDesc.RenderTarget[0].SrcBlendAlpha = d3dSrcBlend[blendMode_];
-                stateDesc.RenderTarget[0].DestBlendAlpha = d3dDestBlend[blendMode_];
+                stateDesc.RenderTarget[0].SrcBlendAlpha = d3dSrcBlendAlpha[blendMode_];
+                stateDesc.RenderTarget[0].DestBlendAlpha = d3dDestBlendAlpha[blendMode_];
                 stateDesc.RenderTarget[0].BlendOpAlpha = d3dBlendOp[blendMode_];
                 stateDesc.RenderTarget[0].RenderTargetWriteMask = colorWrite_ ? D3D11_COLOR_WRITE_ENABLE_ALL : 0x0;
 
