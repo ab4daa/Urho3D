@@ -58,6 +58,7 @@ Text::Text(Context* context) :
     rowSpacing_(1.0f),
     wordWrap_(false),
     autoLocalizable_(false),
+	autoLocalizeFont_(false),
     charLocationsDirty_(true),
     selectionStart_(0),
     selectionLength_(0),
@@ -345,26 +346,73 @@ void Text::SetAutoLocalizable(bool enable)
             stringId_ = text_;
             auto* l10n = GetSubsystem<Localization>();
             text_ = l10n->Get(stringId_);
-            SubscribeToEvent(E_CHANGELANGUAGE, URHO3D_HANDLER(Text, HandleChangeLanguage));
         }
         else
         {
             text_ = stringId_;
             stringId_ = "";
-            UnsubscribeFromEvent(E_CHANGELANGUAGE);
         }
+
+		bool subsEvt = autoLocalizeFont_ || autoLocalizable_;
+		if (subsEvt)
+		{
+			SubscribeToEvent(E_CHANGELANGUAGE, URHO3D_HANDLER(Text, HandleChangeLanguage));
+		}
+		else
+		{
+			UnsubscribeFromEvent(E_CHANGELANGUAGE);
+		}
+
         DecodeToUnicode();
         ValidateSelection();
         UpdateText();
     }
 }
 
+void Text::SetAutoLocalizeFont(bool enable)
+{
+	if (enable == autoLocalizeFont_)
+		return;
+
+	autoLocalizeFont_ = enable;
+	if (autoLocalizeFont_)
+	{
+		auto* l10n = GetSubsystem<Localization>();
+		String path = l10n->GetFont();
+		auto* cache = GetSubsystem<ResourceCache>();
+		Font * font = cache->GetResource<Font>(path);
+		SetFont(font, fontSize_);
+	}
+
+	bool subsEvt = autoLocalizeFont_ || autoLocalizable_;
+	if (subsEvt)
+	{
+		SubscribeToEvent(E_CHANGELANGUAGE, URHO3D_HANDLER(Text, HandleChangeLanguage));
+	}
+	else
+	{
+		UnsubscribeFromEvent(E_CHANGELANGUAGE);
+	}
+}
+
 void Text::HandleChangeLanguage(StringHash eventType, VariantMap& eventData)
 {
     auto* l10n = GetSubsystem<Localization>();
-    text_ = l10n->Get(stringId_);
-    DecodeToUnicode();
-    ValidateSelection();
+	if (autoLocalizable_)
+	{
+		text_ = l10n->Get(stringId_);
+		DecodeToUnicode();
+		ValidateSelection();
+	}
+
+	if (autoLocalizeFont_)
+	{
+		String path = l10n->GetFont();
+		auto* cache = GetSubsystem<ResourceCache>();
+		Font * font = cache->GetResource<Font>(path);
+		if (font)
+			font_ = font;
+	}
     UpdateText();
 }
 

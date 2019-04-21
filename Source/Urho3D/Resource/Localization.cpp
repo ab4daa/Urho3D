@@ -150,6 +150,7 @@ void Localization::Reset()
     languages_.Clear();
     languageIndex_ = -1;
     strings_.Clear();
+	fonts_.Clear();
 }
 
 void Localization::LoadJSONFile(const String& name, const String language)
@@ -249,6 +250,54 @@ void Localization::LoadSingleLanguageJSON(const JSONValue& source, const String&
                     "Localization::LoadSingleLanguageJSON(source, language): failed to load value, string ID=\"" + id +
                     "\", language=\"" + language + "\"");
     }
+}
+
+/*
+ex:
+{
+	"en" : "Fonts/english.ttf",
+	"cht" : "Fonts/CHT.ttf",
+	"jp" : "Fonts/jp.ttf"
+}
+*/
+void Localization::LoadFontJSONFile(const String& name)
+{
+	auto* cache = GetSubsystem<ResourceCache>();
+	auto* jsonFile = cache->GetResource<JSONFile>(name);
+	if (jsonFile == nullptr)
+		return;
+
+	JSONValue &root = jsonFile->GetRoot();
+	for (JSONObject::ConstIterator i = root.Begin(); i != root.End(); ++i)
+	{
+		String id = i->first_;
+		if (id.Empty())
+		{
+			URHO3D_LOGWARNING("Localization::LoadFontJSONFile(): string ID is empty");
+			continue;
+		}
+		const String& fontPath = i->second_.GetString();
+		fonts_[StringHash(id)] = fontPath;
+	}
+}
+
+String Localization::GetFont()
+{
+	if (GetNumLanguages() == 0)
+	{
+		URHO3D_LOGWARNING("Localization::GetFont(): no loaded languages");
+		return String::EMPTY;
+	}
+
+	StringHash key(GetLanguage());
+	if (fonts_.Contains(key))
+	{
+		return fonts_[key];
+	}
+	else
+	{
+		return String::EMPTY;
+	}
 }
 
 }
