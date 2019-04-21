@@ -66,6 +66,10 @@ public:
     /// Load strings from JSONValue for specific language.
     void LoadSingleLanguageJSON(const JSONValue& source, const String& language = String::EMPTY);
 
+	void LoadFontJSONFile(const String& name);
+
+	String GetFont();
+
 private:
     /// Language names.
     Vector<String> languages_;
@@ -73,6 +77,8 @@ private:
     int languageIndex_;
     /// Storage strings: <Language <StringId, Value> >.
     HashMap<StringHash, HashMap<StringHash, String> > strings_;
+	/// <Language, font path>
+	HashMap<StringHash, String> fonts_;
 };
 
 }
