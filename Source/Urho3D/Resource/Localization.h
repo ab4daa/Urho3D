@@ -64,6 +64,10 @@ public:
     /// Load strings from JSONFile. The file should be UTF8 without BOM.
     void LoadJSONFile(const String& name);
 
+	void LoadFontJSONFile(const String& name);
+
+	String GetFont();
+
 private:
     /// Language names.
     Vector<String> languages_;
@@ -71,6 +75,8 @@ private:
     int languageIndex_;
     /// Storage strings: <Language <StringId, Value> >.
     HashMap<StringHash, HashMap<StringHash, String> > strings_;
+	/// <Language, font path>
+	HashMap<StringHash, String> fonts_;
 };
 
 }

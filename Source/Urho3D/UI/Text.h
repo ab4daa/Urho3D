@@ -109,6 +109,8 @@ public:
     void SetWordwrap(bool enable);
     /// The text will be automatically translated. The text value used as string identifier.
     void SetAutoLocalizable(bool enable);
+	/// font will auto change depends on localization
+	void SetAutoLocalizeFont(bool enable);
     /// Set selection. When length is not provided, select until the text ends.
     void SetSelection(unsigned start, unsigned length = M_MAX_UNSIGNED);
     /// Clear selection.
@@ -144,6 +146,8 @@ public:
 
     /// Return auto localizable mode.
     bool GetAutoLocalizable() const { return autoLocalizable_; }
+
+	bool GetAutoLocalizeFont() const { return autoLocalizeFont_; }
 
     /// Return selection start.
     unsigned GetSelectionStart() const { return selectionStart_; }
@@ -261,6 +265,8 @@ protected:
     PODVector<CharLocation> charLocations_;
     /// The text will be automatically translated.
     bool autoLocalizable_;
+	/// auto change font depends on localization
+	bool autoLocalizeFont_;
     /// Localization string id storage. Used when autoLocalizable flag is set.
     String stringId_;
     /// Handle change Language.
