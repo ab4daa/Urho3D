@@ -1071,7 +1071,8 @@ void Graphics::SetShaderParameter(StringHash param, bool value)
     ConstantBuffer* buffer = i->second_.bufferPtr_;
     if (!buffer->IsDirty())
         impl_->dirtyConstantBuffers_.Push(buffer);
-    buffer->SetParameter(i->second_.offset_, sizeof(bool), &value);
+	bool data[4] = { value };
+    buffer->SetParameter(i->second_.offset_, sizeof(data), data);
 }
 
 void Graphics::SetShaderParameter(StringHash param, const Color& color)
