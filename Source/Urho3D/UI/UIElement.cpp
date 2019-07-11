@@ -1784,8 +1784,12 @@ void UIElement::SortChildren()
     {
         // Only sort when there is no layout
         /// \todo Order is not stable when children have same priorities
-        if (layoutMode_ == LM_FREE)
-            Sort(children_.Begin(), children_.End(), CompareUIElements);
+        //if (layoutMode_ == LM_FREE)
+        //    Sort(children_.Begin(), children_.End(), CompareUIElements);
+        //auto update layout or move the UIElement, will glitch when trigger by children event and children can be focus, but original Urho3D has this problem, too
+        //test by Button
+        Stable_Sort(children_.Begin(), children_.End(), CompareUIElements);
+        UpdateLayout();
         sortOrderDirty_ = false;
     }
 }
