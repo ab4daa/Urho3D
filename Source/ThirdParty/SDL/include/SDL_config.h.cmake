@@ -420,6 +420,7 @@
 
 /* Enable ime support */
 #cmakedefine SDL_USE_IME @SDL_USE_IME@
+#cmakedefine SDL_DISABLE_WINDOWS_IME
 
 /* Enable dynamic udev support */
 #cmakedefine SDL_UDEV_DYNAMIC @SDL_UDEV_DYNAMIC@
