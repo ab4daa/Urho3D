@@ -263,6 +263,7 @@ enum TextureUsage
 {
     TEXTURE_STATIC = 0,
     TEXTURE_DYNAMIC,
+    TEXTURE_COMPUTETARGET,
     TEXTURE_RENDERTARGET,
     TEXTURE_DEPTHSTENCIL
 };
@@ -476,4 +477,6 @@ static const int MAX_VERTEX_STREAMS = 4;
 static const int MAX_CONSTANT_REGISTERS = 256;
 
 static const int BITS_PER_COMPONENT = 8;
+
+static const int MAX_SHADER_UAV = 8;
 }

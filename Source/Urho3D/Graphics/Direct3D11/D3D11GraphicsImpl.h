@@ -95,6 +95,8 @@ private:
     ID3D11ShaderResourceView* shaderResourceViews_[MAX_TEXTURE_UNITS];
     /// Bound sampler state objects.
     ID3D11SamplerState* samplers_[MAX_TEXTURE_UNITS];
+    /// Bound unordered access views (UAV).
+    ID3D11UnorderedAccessView* unorderedAccessViews_[MAX_SHADER_UAV];
     /// Bound vertex buffers.
     ID3D11Buffer* vertexBuffers_[MAX_VERTEX_STREAMS];
     /// Bound constant buffers.
@@ -129,6 +131,10 @@ private:
     unsigned firstDirtyTexture_;
     /// Last dirtied texture unit.
     unsigned lastDirtyTexture_;
+    /// First dirtied unordered access view.
+    unsigned firstDirtyUav_;
+    /// Last dirtied unordered access view.
+    unsigned lastDirtyUav_;
     /// First dirtied vertex buffer.
     unsigned firstDirtyVB_;
     /// Last dirtied vertex buffer.

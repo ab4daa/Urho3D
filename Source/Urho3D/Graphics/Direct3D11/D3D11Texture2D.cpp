@@ -66,6 +66,7 @@ void Texture2D::Release()
     URHO3D_SAFE_RELEASE(object_.ptr_);
     URHO3D_SAFE_RELEASE(resolveTexture_);
     URHO3D_SAFE_RELEASE(shaderResourceView_);
+    URHO3D_SAFE_RELEASE(unorderedAccessView_);
     URHO3D_SAFE_RELEASE(sampler_);
 }
 
@@ -407,6 +408,8 @@ bool Texture2D::Create()
         textureDesc.BindFlags |= D3D11_BIND_RENDER_TARGET;
     else if (usage_ == TEXTURE_DEPTHSTENCIL)
         textureDesc.BindFlags |= D3D11_BIND_DEPTH_STENCIL;
+    if (usage_ == TEXTURE_COMPUTETARGET)
+        textureDesc.BindFlags |= D3D11_BIND_UNORDERED_ACCESS;
     textureDesc.CPUAccessFlags = usage_ == TEXTURE_DYNAMIC ? D3D11_CPU_ACCESS_WRITE : 0;
 
     // D3D feature level 10.0 or below does not support readable depth when multisampled
@@ -460,7 +463,25 @@ bool Texture2D::Create()
         }
     }
 
-    if (usage_ == TEXTURE_RENDERTARGET)
+    if (usage_ == TEXTURE_COMPUTETARGET)
+    {
+        D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc;
+        memset(&uavDesc, 0, sizeof uavDesc);
+        uavDesc.Format = (DXGI_FORMAT)GetSRVFormat(textureDesc.Format);
+        uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+        uavDesc.Texture2D.MipSlice = 0;
+
+        hr = graphics_->GetImpl()->GetDevice()->CreateUnorderedAccessView((ID3D11Resource*)object_.ptr_, 0,
+            (ID3D11UnorderedAccessView**)&unorderedAccessView_);
+        if (FAILED(hr))
+        {
+            URHO3D_SAFE_RELEASE(unorderedAccessView_);
+            URHO3D_LOGD3DERROR("Failed to create unordered access view for texture2d", hr);
+            return false;
+        }
+    }
+
+    if (usage_ == TEXTURE_RENDERTARGET || usage_ == TEXTURE_COMPUTETARGET)
     {
         D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
         memset(&renderTargetViewDesc, 0, sizeof renderTargetViewDesc);
