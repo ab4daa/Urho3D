@@ -994,7 +994,7 @@ Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWid
 }
 
 Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, int multiSample, bool autoResolve, bool cubemap, bool filtered, bool srgb,
-    unsigned persistentKey)
+    bool compute, unsigned persistentKey)
 {
     bool depthStencil = (format == Graphics::GetDepthStencilFormat()) || (format == Graphics::GetReadableDepthFormat());
     if (depthStencil)
@@ -1041,9 +1041,17 @@ Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, int m
         if (!cubemap)
         {
             SharedPtr<Texture2D> newTex2D(new Texture2D(context_));
+            TextureUsage Usage;
+
+            if (depthStencil)
+                Usage = TEXTURE_DEPTHSTENCIL;
+            else if (compute)
+                Usage = TEXTURE_COMPUTETARGET;
+            else
+                Usage = TEXTURE_RENDERTARGET;
             /// \todo Mipmaps disabled for now. Allow to request mipmapped buffer?
             newTex2D->SetNumLevels(1);
-            newTex2D->SetSize(width, height, format, depthStencil ? TEXTURE_DEPTHSTENCIL : TEXTURE_RENDERTARGET, multiSample, autoResolve);
+            newTex2D->SetSize(width, height, format, Usage, multiSample, autoResolve);
 
 #ifdef URHO3D_OPENGL
             // OpenGL hack: clear persistent floating point screen buffers to ensure the initial contents aren't illegal (NaN)?

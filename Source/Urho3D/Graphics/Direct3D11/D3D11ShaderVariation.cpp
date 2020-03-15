@@ -72,7 +72,7 @@ bool ShaderVariation::Create()
     // Check for up-to-date bytecode on disk
     String path, name, extension;
     SplitPath(owner_->GetName(), path, name, extension);
-    extension = type_ == VS ? ".vs4" : ".ps4";
+    extension = type_ == VS ? ".vs5" : ".ps5";
 
     String binaryShaderName = graphics_->GetShaderCacheDir() + name + "_" + StringHash(defines_).ToString() + extension;
 
@@ -248,13 +248,13 @@ bool ShaderVariation::Compile()
     {
         entryPoint = "VS";
         defines.Push("COMPILEVS");
-        profile = "vs_4_0";
+        profile = "vs_5_0";
     }
     else
     {
         entryPoint = "PS";
         defines.Push("COMPILEPS");
-        profile = "ps_4_0";
+        profile = "ps_5_0";
         flags |= D3DCOMPILE_PREFER_FLOW_CONTROL;
     }
 

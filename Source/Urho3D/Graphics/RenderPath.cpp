@@ -60,6 +60,7 @@ static const char* sortModeNames[] =
 extern const char* blendModeNames[];
 
 TextureUnit ParseTextureUnitName(String name);
+StringHash ParseTextureTypeName(const String& name);
 
 void RenderTargetInfo::Load(const XMLElement& element)
 {
@@ -67,8 +68,18 @@ void RenderTargetInfo::Load(const XMLElement& element)
     tag_ = element.GetAttribute("tag");
     if (element.HasAttribute("enabled"))
         enabled_ = element.GetBool("enabled");
-    if (element.HasAttribute("cubemap"))
+
+    if (element.HasAttribute("layers"))
+        layers_ = element.GetUInt("layers");
+
+    if (element.HasAttribute("type"))
+        type_ = ParseTextureTypeName(element.GetAttribute("type"));
+    else if (element.HasAttribute("cubemap"))
+    {
         cubemap_ = element.GetBool("cubemap");
+        type_ = ParseTextureTypeName("cubemap");
+        layers_ = 6;
+    }
 
     String formatName = element.GetAttribute("format");
     format_ = Graphics::GetFormat(formatName);
@@ -81,6 +92,9 @@ void RenderTargetInfo::Load(const XMLElement& element)
 
     if (element.HasAttribute("persistent"))
         persistent_ = element.GetBool("persistent");
+
+    if (element.HasAttribute("compute"))
+        compute_ = element.GetBool("compute");
 
     if (element.HasAttribute("size"))
         size_ = element.GetVector2("size");
@@ -241,6 +255,7 @@ void RenderPathCommand::SetTextureName(TextureUnit unit, const String& name)
 
 void RenderPathCommand::SetShaderParameter(const String& name, const Variant& value)
 {
+    shaderParametersDirty_ = true;
     shaderParameters_[name] = value;
 }
 

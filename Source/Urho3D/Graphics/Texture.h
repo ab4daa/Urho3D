@@ -156,6 +156,9 @@ public:
     /// Return shader resource view. Only used on Direct3D11.
     void* GetShaderResourceView() const { return shaderResourceView_; }
 
+    /// Return unordered access view.
+    void* GetUnorderedAccessView() const { return unorderedAccessView_; }
+
     /// Return sampler state object. Only used on Direct3D11.
     void* GetSampler() const { return sampler_; }
 
@@ -200,6 +203,8 @@ protected:
 
     /// Direct3D11 shader resource view.
     void* shaderResourceView_{};
+    /// Unordered access view;
+    void* unorderedAccessView_{};
     /// Direct3D11 sampler state object.
     void* sampler_{};
     /// Direct3D11 resolve texture object when multisample with autoresolve is used.
