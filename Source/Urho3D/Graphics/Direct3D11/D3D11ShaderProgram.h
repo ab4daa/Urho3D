@@ -24,11 +24,19 @@
 
 #include "../../Container/HashMap.h"
 #include "../../Graphics/ConstantBuffer.h"
+#include "../../Graphics/ShaderBuffer.h"
 #include "../../Graphics/Graphics.h"
 #include "../../Graphics/ShaderVariation.h"
+#include "../../Graphics/Texture.h"
+#include "../../IO/Log.h"
 
 namespace Urho3D
 {
+
+/// A pair of a buffer and the slot where it is bound.
+typedef Pair<unsigned, SharedPtr<ShaderBuffer> > SlotBufferPair;
+/// A pair of a texture and the slot where it is bound.
+typedef Pair<unsigned, WeakPtr<Texture> > SlotTexturePair;
 
 /// Combined information for specific vertex and pixel shaders.
 class URHO3D_API ShaderProgram : public RefCounted
@@ -37,34 +45,76 @@ public:
     /// Construct.
     ShaderProgram(Graphics* graphics, ShaderVariation* vertexShader, ShaderVariation* pixelShader)
     {
-        // Create needed constant buffers
-        const unsigned* vsBufferSizes = vertexShader->GetConstantBufferSizes();
-        for (unsigned i = 0; i < MAX_SHADER_PARAMETER_GROUPS; ++i)
-        {
-            if (vsBufferSizes[i])
-                vsConstantBuffers_[i] = graphics->GetOrCreateConstantBuffer(VS, i, vsBufferSizes[i]);
-        }
+        ShaderVariation* shaders[MAX_SHADER_TYPE];
+        shaders[VS] = vertexShader;
+        shaders[PS] = pixelShader;
 
-        const unsigned* psBufferSizes = pixelShader->GetConstantBufferSizes();
-        for (unsigned i = 0; i < MAX_SHADER_PARAMETER_GROUPS; ++i)
+        for (unsigned shaderType = 0; shaderType < MAX_SHADER_TYPE; ++shaderType)
         {
-            if (psBufferSizes[i])
-                psConstantBuffers_[i] = graphics->GetOrCreateConstantBuffer(PS, i, psBufferSizes[i]);
-        }
+            ShaderVariation* shader = shaders[shaderType];
+            if (!shader)
+                continue;
 
-        // Copy parameters, add direct links to constant buffers
-        const HashMap<StringHash, ShaderParameter>& vsParams = vertexShader->GetParameters();
-        for (HashMap<StringHash, ShaderParameter>::ConstIterator i = vsParams.Begin(); i != vsParams.End(); ++i)
-        {
-            parameters_[i->first_] = i->second_;
-            parameters_[i->first_].bufferPtr_ = vsConstantBuffers_[i->second_.buffer_].Get();
-        }
+            // Shader resources.
+            HashMap<StringHash, ShaderResource> resources = shader->GetResources();
+            for (HashMap<StringHash, ShaderResource>::ConstIterator i = resources.Begin(); i != resources.End(); ++i)
+            {
+                StringHash resourceHash = i->first_;
+                const ShaderResource& resource = i->second_;
+                if (resource.type_ == SR_CBV)
+                {
+                    // Create needed constant buffers
+                    constantBuffers_[shaderType][resource.bindSlot_] =
+                        graphics->GetOrCreateConstantBuffer((ShaderType)shaderType, resourceHash, &resource);
 
-        const HashMap<StringHash, ShaderParameter>& psParams = pixelShader->GetParameters();
-        for (HashMap<StringHash, ShaderParameter>::ConstIterator i = psParams.Begin(); i != psParams.End(); ++i)
-        {
-            parameters_[i->first_] = i->second_;
-            parameters_[i->first_].bufferPtr_ = psConstantBuffers_[i->second_.buffer_].Get();
+                    // Copy parameters. Add direct links to constant buffers.
+                    const HashMap<StringHash, ShaderParameter>& params = shader->GetParameters();
+                    for (HashMap<StringHash, ShaderParameter>::ConstIterator j = params.Begin(); j != params.End(); ++j)
+                    {
+                        parameters_[j->first_] = j->second_;
+                        parameters_[j->first_].bufferPtr_ = constantBuffers_[shaderType][j->second_.buffer_].Get();
+                    }
+                }
+                else if (resource.type_ == SR_SRV)
+                {
+                    // Get the structured buffer, it should be already created by the user
+                    ShaderBuffer* buffer = graphics->GetShaderBuffer(resourceHash);
+                    if (!buffer)
+                        URHO3D_LOGERROR("SRV buffer " + resource.name_ + " not defined");
+                    else if (resource.size_ && buffer->GetElementSize() != resource.size_)
+                        URHO3D_LOGERROR("SRV buffer " + resource.name_ + " requires elements of size " + String(resource.size_) +
+                            " but it was created with size " + String(buffer->GetElementSize()));
+                    else if ((buffer->GetUsage() & ShaderBuffer::BUFFER_READ) == 0)
+                        URHO3D_LOGERROR("SRV buffer " + resource.name_ + " needs the BUFFER_READ flag");
+                    else
+                        resourceViewBuffers_.Push(MakePair(resource.bindSlot_, SharedPtr<ShaderBuffer>(buffer)));
+                }
+                else if (resource.type_ == SR_UAV_STRUCTURED)
+                {
+                    // Get the unordered buffer, it should be already created by the user
+                    ShaderBuffer* buffer = graphics->GetShaderBuffer(resourceHash);
+                    if (!buffer)
+                        URHO3D_LOGERROR("UAV buffer " + resource.name_ + " not defined");
+                    else if (resource.size_ && buffer->GetElementSize() != resource.size_)
+                        URHO3D_LOGERROR("UAV buffer " + resource.name_ + " requires elements of size " + String(resource.size_) +
+                            " but it was created with size " + String(buffer->GetElementSize()));
+                    else if ((buffer->GetUsage() & ShaderBuffer::BUFFER_WRITE) == 0)
+                        URHO3D_LOGERROR("UAV buffer " + resource.name_ + " needs the BUFFER_WRITE flag");
+                    else
+                        accessViewBuffers_.Push(MakePair(resource.bindSlot_, SharedPtr<ShaderBuffer>(buffer)));
+                }
+                else if (resource.type_ == SR_UAV_TYPED)
+                {
+                    // Get the texture where compute shaders can write to
+                    Texture* texture = graphics->GetComputeTarget(resourceHash, resource.bindSlot_);
+                    if (!texture)
+                        URHO3D_LOGERROR("UAV texture " + resource.name_ + " not found");
+                    else if (texture->GetUsage() != TEXTURE_COMPUTETARGET)
+                        URHO3D_LOGERROR("UAV texture " + resource.name_ + " needs COMPUTETARGET usage");
+                    else
+                        accessViewTextures_.Push(MakePair(resource.bindSlot_, WeakPtr<Texture>(texture)));
+                }
+            }
         }
 
         // Optimize shader parameter lookup by rehashing to next power of two
@@ -79,10 +129,14 @@ public:
 
     /// Combined parameters from the vertex and pixel shader.
     HashMap<StringHash, ShaderParameter> parameters_;
-    /// Vertex shader constant buffers.
-    SharedPtr<ConstantBuffer> vsConstantBuffers_[MAX_SHADER_PARAMETER_GROUPS];
-    /// Pixel shader constant buffers.
-    SharedPtr<ConstantBuffer> psConstantBuffers_[MAX_SHADER_PARAMETER_GROUPS];
+    /// Shader constant buffers.
+    SharedPtr<ConstantBuffer> constantBuffers_[MAX_SHADER_TYPE][MAX_SHADER_PARAMETER_GROUPS];
+    /// Input buffers accessed by a shader resource views (SRV).
+    Vector< SlotBufferPair > resourceViewBuffers_;
+    /// Output buffers accessed by a unordered access views (UAV).
+    Vector< SlotBufferPair > accessViewBuffers_;
+    /// Output textures accessed by a unordered access views (UAV).
+    Vector< SlotTexturePair > accessViewTextures_;
 };
 
 }

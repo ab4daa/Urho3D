@@ -303,6 +303,18 @@ enum ShaderType
 {
     VS = 0,
     PS,
+    MAX_SHADER_TYPE
+};
+
+/// Buffer types.
+enum ShaderResourceType
+{
+    SR_SAMPLERS = 0,    // texture sampler
+    SR_CBV,             // constant buffer view
+    SR_SRV,             // shader resource view
+    SR_UAV_STRUCTURED,  // unordered access view for a structured buffer
+    SR_UAV_TYPED,       // unordered access view for a typed buffer
+    MAX_SHADER_RESOURCE_TYPE
 };
 
 /// Shader parameter groups for determining need to update. On APIs that support constant buffers, these correspond to different constant buffers.

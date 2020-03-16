@@ -77,6 +77,34 @@ struct ShaderParameter
     ConstantBuffer* bufferPtr_{};
 };
 
+/// %Shader resource definition.
+struct ShaderResource
+{
+    /// Construct with defaults.
+    ShaderResource() = default;
+ 
+    /// Construct with parameters.
+    ShaderResource(ShaderResourceType type, const String& name, unsigned slot, unsigned count, unsigned size) :
+        type_(type),
+        name_(name),
+        bindSlot_(slot),
+        bindCount_(count),
+        size_(size)
+    {
+    }
+
+    /// Type of data in the resource.
+    ShaderResourceType type_{ SR_SRV };
+    /// Name of the shader resource.
+    String name_;
+    /// Starting bind slot.
+    unsigned bindSlot_{0};
+    /// Number of contiguous bind slots occupied.
+    unsigned bindCount_{0};
+    /// Element size in bytes for buffers.
+    unsigned size_{0};
+};
+
 /// Vertex or pixel shader on the GPU.
 class URHO3D_API ShaderVariation : public RefCounted, public GPUObject
 {
@@ -104,6 +132,9 @@ public:
     /// Return shader type.
     ShaderType GetShaderType() const { return type_; }
 
+    /// Return shader type name.
+    const String& GetTypeName() const;
+
     /// Return shader name.
     const String& GetName() const { return name_; }
 
@@ -115,6 +146,9 @@ public:
 
     /// Return whether uses a texture unit (only for pixel shaders.) Not applicable on OpenGL, where this information is contained in ShaderProgram instead.
     bool HasTextureUnit(TextureUnit unit) const { return useTextureUnits_[unit]; }
+
+    /// Return shader resources.
+    const HashMap<StringHash, ShaderResource>& GetResources() const { return resources_; }
 
     /// Return all parameter definitions. Not applicable on OpenGL, where this information is contained in ShaderProgram instead.
     const HashMap<StringHash, ShaderParameter>& GetParameters() const { return parameters_; }
@@ -130,9 +164,6 @@ public:
 
     /// Return compile error/warning string.
     const String& GetCompilerOutput() const { return compilerOutput_; }
-
-    /// Return constant buffer data sizes.
-    const unsigned* GetConstantBufferSizes() const { return &constantBufferSizes_[0]; }
 
     /// Return defines with the CLIPPLANE define appended. Used internally on Direct3D11 only, will be empty on other APIs.
     const String& GetDefinesClipPlane() { return definesClipPlane_; }
@@ -158,12 +189,12 @@ private:
     ShaderType type_;
     /// Vertex element hash for vertex shaders. Zero for pixel shaders. Note that hashing is different than vertex buffers.
     unsigned long long elementHash_{};
+    /// Shader resources.
+    HashMap<StringHash, ShaderResource> resources_;
     /// Shader parameters.
     HashMap<StringHash, ShaderParameter> parameters_;
     /// Texture unit use flags.
     bool useTextureUnits_[MAX_TEXTURE_UNITS]{};
-    /// Constant buffer sizes. 0 if a constant buffer slot is not in use.
-    unsigned constantBufferSizes_[MAX_SHADER_PARAMETER_GROUPS]{};
     /// Shader bytecode. Needed for inspecting the input signature and parameters. Not used on OpenGL.
     PODVector<unsigned char> byteCode_;
     /// Shader name.

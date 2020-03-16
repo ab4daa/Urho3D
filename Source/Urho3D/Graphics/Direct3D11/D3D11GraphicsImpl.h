@@ -38,7 +38,53 @@ namespace Urho3D
 
 #define URHO3D_LOGD3DERROR(msg, hr) URHO3D_LOGERRORF("%s (HRESULT %x)", msg, (unsigned)hr)
 
-using ShaderProgramMap = HashMap<Pair<ShaderVariation*, ShaderVariation*>, SharedPtr<ShaderProgram> >;
+struct ShadersKey
+{
+    ShadersKey() :
+        vertexShader_(0),
+        pixelShader_(0),
+        geometryShader_(0)
+    {}
+
+    ShadersKey(ShaderVariation* vertexShader, ShaderVariation* pixelShader,
+        ShaderVariation* geometryShader, ShaderVariation* computeShader) :
+        vertexShader_(vertexShader),
+        pixelShader_(pixelShader),
+        geometryShader_(geometryShader),
+        computeShader_(computeShader)
+    {}
+
+    bool operator == (const ShadersKey& rhs) const
+    {
+        return vertexShader_ == rhs.vertexShader_ &&
+            pixelShader_ == rhs.pixelShader_ &&
+            geometryShader_ == rhs.geometryShader_ &&
+            computeShader_ == rhs.computeShader_;
+    }
+
+    bool Contains(ShaderVariation* variation) const
+    {
+        return variation == vertexShader_ ||
+            variation == pixelShader_ ||
+            variation == geometryShader_ ||
+            variation == computeShader_;
+    }
+
+    unsigned ToHash() const
+    {
+        unsigned key = MakeHash(geometryShader_) << 22;
+        key += (MakeHash(pixelShader_) & 0x7FF) << 11;
+        key += (MakeHash(vertexShader_) & 0x7FF) | MakeHash(computeShader_);
+        return key;
+    }
+
+    ShaderVariation* vertexShader_;
+    ShaderVariation* pixelShader_;
+    ShaderVariation* geometryShader_;
+    ShaderVariation* computeShader_;
+};
+
+using ShaderProgramMap = HashMap<ShadersKey, SharedPtr<ShaderProgram> >;
 using VertexDeclarationMap = HashMap<unsigned long long, SharedPtr<VertexDeclaration> >;
 using ConstantBufferMap = HashMap<unsigned, SharedPtr<ConstantBuffer> >;
 
@@ -141,10 +187,18 @@ private:
     unsigned lastDirtyVB_;
     /// Vertex declarations.
     VertexDeclarationMap vertexDeclarations_;
+    /// Constant buffers name to key map.
+    HashMap<StringHash, unsigned> constantBuffersKeys_;
     /// Constant buffer search map.
     ConstantBufferMap allConstantBuffers_;
     /// Currently dirty constant buffers.
     PODVector<ConstantBuffer*> dirtyConstantBuffers_;
+    /// Shader buffers.
+    HashMap<StringHash, SharedPtr<ShaderBuffer> > shaderBuffers_;
+    /// Compute targets.
+    HashMap<StringHash, WeakPtr<Texture> > computeTargets_;
+    /// Compute targets slots.
+    HashMap<unsigned, StringHash > computeTargetsSlots_;
     /// Shader programs.
     ShaderProgramMap shaderPrograms_;
     /// Shader program in use.

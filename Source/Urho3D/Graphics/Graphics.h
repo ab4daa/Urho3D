@@ -46,6 +46,7 @@ class GPUObject;
 class GraphicsImpl;
 class RenderSurface;
 class Shader;
+class ShaderBuffer;
 class ShaderPrecache;
 class ShaderProgram;
 class ShaderVariation;
@@ -520,7 +521,21 @@ public:
     /// Clean up a render surface from all FBOs. Used only on OpenGL.
     void CleanupRenderSurface(RenderSurface* surface);
     /// Get or create a constant buffer. Will be shared between shaders if possible.
-    ConstantBuffer* GetOrCreateConstantBuffer(ShaderType type, unsigned index, unsigned size);
+    ConstantBuffer* GetOrCreateConstantBuffer(ShaderType type, StringHash name, const ShaderResource* resource);
+    /// Add a ShaderBuffer to be accessible by shaders.
+    void AddShaderBuffer(StringHash bufferName, ShaderBuffer* buffer);
+    /// Get a ShaderBuffer by name.
+    ShaderBuffer* GetShaderBuffer(StringHash bufferName);
+    /// Clear compute targets.
+    void ClearComputeTargets();
+    /// Add a compute target.
+    void AddComputeTarget(StringHash targetName, Texture* texture);
+    /// Clear compute targets slots.
+    void ClearComputeTargetsSlots();
+    /// Set the slot of a compute target.
+    void SetComputeTargetSlot(StringHash targetName, unsigned slot);
+    /// Get a compute target by name.
+    Texture* GetComputeTarget(StringHash targetName, unsigned slot);
     /// Mark the FBO needing an update. Used only on OpenGL.
     void MarkFBODirty();
     /// Bind a VBO, avoiding redundant operation. Used only on OpenGL.
@@ -554,6 +569,8 @@ public:
     static unsigned GetFloat16Format();
     /// Return the API-specific single channel 32-bit float texture format.
     static unsigned GetFloat32Format();
+    /// Return the API-specific single channel 32-bit uint texture format.
+    static unsigned GetUint32Format();
     /// Return the API-specific linear depth texture format.
     static unsigned GetLinearDepthFormat();
     /// Return the API-specific hardware depth-stencil texture format.
