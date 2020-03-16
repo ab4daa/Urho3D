@@ -228,6 +228,8 @@ Graphics::~Graphics()
 
     impl_->vertexDeclarations_.Clear();
     impl_->allConstantBuffers_.Clear();
+    impl_->shaderBuffers_.Clear();
+    impl_->computeTargets_.Clear();
 
     for (HashMap<unsigned, ID3D11BlendState*>::Iterator i = impl_->blendStates_.Begin(); i != impl_->blendStates_.End(); ++i)
     {
@@ -934,16 +936,7 @@ bool Graphics::SetVertexBuffers(const PODVector<VertexBuffer*>& buffers, unsigne
         if (changed)
         {
             impl_->vertexDeclarationDirty_ = true;
-
-            if (impl_->firstDirtyVB_ == M_MAX_UNSIGNED)
-                impl_->firstDirtyVB_ = impl_->lastDirtyVB_ = i;
-            else
-            {
-                if (i < impl_->firstDirtyVB_)
-                    impl_->firstDirtyVB_ = i;
-                if (i > impl_->lastDirtyVB_)
-                    impl_->lastDirtyVB_ = i;
-            }
+            UpdateEnds(i, impl_->firstDirtyVB_, impl_->lastDirtyVB_);
         }
     }
 
@@ -980,8 +973,7 @@ void Graphics::SetShaders(ShaderVariation* vs, ShaderVariation* ps)
             ps = ps->GetOwner()->GetVariation(PS, ps->GetDefinesClipPlane());
     }
 
-    if (vs == vertexShader_ && ps == pixelShader_)
-        return;
+    bool shaderChanged = false;
 
     if (vs != vertexShader_)
     {
@@ -1006,6 +998,7 @@ void Graphics::SetShaders(ShaderVariation* vs, ShaderVariation* ps)
         impl_->deviceContext_->VSSetShader((ID3D11VertexShader*)(vs ? vs->GetGPUObject() : nullptr), nullptr, 0);
         vertexShader_ = vs;
         impl_->vertexDeclarationDirty_ = true;
+        shaderChanged = true;
     }
 
     if (ps != pixelShader_)
@@ -1029,49 +1022,95 @@ void Graphics::SetShaders(ShaderVariation* vs, ShaderVariation* ps)
 
         impl_->deviceContext_->PSSetShader((ID3D11PixelShader*)(ps ? ps->GetGPUObject() : nullptr), nullptr, 0);
         pixelShader_ = ps;
+        shaderChanged = true;
     }
+
+    if (!shaderChanged)
+        return;
 
     // Update current shader parameters & constant buffers
     if (vertexShader_ && pixelShader_)
     {
-        Pair<ShaderVariation*, ShaderVariation*> key = MakePair(vertexShader_, pixelShader_);
+        ShadersKey key(vertexShader_, pixelShader_, nullptr, nullptr);
+
         ShaderProgramMap::Iterator i = impl_->shaderPrograms_.Find(key);
         if (i != impl_->shaderPrograms_.End())
             impl_->shaderProgram_ = i->second_.Get();
         else
         {
-            ShaderProgram* newProgram = impl_->shaderPrograms_[key] = new ShaderProgram(this, vertexShader_, pixelShader_);
+            ShaderProgram* newProgram = new ShaderProgram(this, vertexShader_, pixelShader_);
+            impl_->shaderPrograms_[key] = newProgram;
             impl_->shaderProgram_ = newProgram;
         }
 
-        bool vsBuffersChanged = false;
-        bool psBuffersChanged = false;
+        bool buffersChanged[MAX_SHADER_TYPE];
 
-        for (unsigned i = 0; i < MAX_SHADER_PARAMETER_GROUPS; ++i)
+        for (unsigned shaderType = 0; shaderType < MAX_SHADER_TYPE; ++shaderType)
         {
-            ID3D11Buffer* vsBuffer = impl_->shaderProgram_->vsConstantBuffers_[i] ? (ID3D11Buffer*)impl_->shaderProgram_->vsConstantBuffers_[i]->
-                GetGPUObject() : nullptr;
-            if (vsBuffer != impl_->constantBuffers_[VS][i])
-            {
-                impl_->constantBuffers_[VS][i] = vsBuffer;
-                shaderParameterSources_[i] = (const void*)M_MAX_UNSIGNED;
-                vsBuffersChanged = true;
-            }
+            buffersChanged[shaderType] = false;
 
-            ID3D11Buffer* psBuffer = impl_->shaderProgram_->psConstantBuffers_[i] ? (ID3D11Buffer*)impl_->shaderProgram_->psConstantBuffers_[i]->
-                GetGPUObject() : nullptr;
-            if (psBuffer != impl_->constantBuffers_[PS][i])
+            for (unsigned i = 0; i < MAX_SHADER_PARAMETER_GROUPS; ++i)
             {
-                impl_->constantBuffers_[PS][i] = psBuffer;
-                shaderParameterSources_[i] = (const void*)M_MAX_UNSIGNED;
-                psBuffersChanged = true;
+                ConstantBuffer* constantBuffer = impl_->shaderProgram_->constantBuffers_[shaderType][i];
+                ID3D11Buffer* buffer = constantBuffer ? (ID3D11Buffer*)constantBuffer->GetGPUObject() : 0;
+                if (buffer != impl_->constantBuffers_[shaderType][i])
+                {
+                    impl_->constantBuffers_[shaderType][i] = buffer;
+                    shaderParameterSources_[i] = (const void*)M_MAX_UNSIGNED;
+                    buffersChanged[shaderType] = true;
+                }
             }
         }
 
-        if (vsBuffersChanged)
+        if (buffersChanged[VS])
             impl_->deviceContext_->VSSetConstantBuffers(0, MAX_SHADER_PARAMETER_GROUPS, &impl_->constantBuffers_[VS][0]);
-        if (psBuffersChanged)
-            impl_->deviceContext_->PSSetConstantBuffers(0, MAX_SHADER_PARAMETER_GROUPS, &impl_->constantBuffers_[PS][0]);
+        if (buffersChanged[PS])
+            impl_->deviceContext_->PSSetConstantBuffers(0, MAX_SHADER_PARAMETER_GROUPS, &impl_->constantBuffers_[PS][0]);        
+
+        // Inputs buffer
+        for (unsigned i = 0; i < impl_->shaderProgram_->resourceViewBuffers_.Size(); ++i)
+        {
+            const SlotBufferPair& pair = impl_->shaderProgram_->resourceViewBuffers_.At(i);
+            unsigned slot = pair.first_;
+            ShaderBuffer* buffer = pair.second_;
+            ID3D11ShaderResourceView* srv = (ID3D11ShaderResourceView*)buffer->GetShaderResourceView();
+            if (srv != impl_->shaderResourceViews_[slot])
+            {
+                impl_->shaderResourceViews_[slot] = srv;
+                UpdateEnds(slot, impl_->firstDirtyTexture_, impl_->lastDirtyTexture_);
+                impl_->texturesDirty_ = true;
+            }
+        }
+
+        // Output buffers
+        for (unsigned i = 0; i < impl_->shaderProgram_->accessViewBuffers_.Size(); ++i)
+        {
+            const SlotBufferPair& pair = impl_->shaderProgram_->accessViewBuffers_.At(i);
+            unsigned slot = pair.first_;
+            ShaderBuffer* buffer = pair.second_;
+            ID3D11UnorderedAccessView* uav = (ID3D11UnorderedAccessView*)buffer->GetUnorderedAccessView();
+            if (uav != impl_->unorderedAccessViews_[slot])
+            {
+                impl_->unorderedAccessViews_[slot] = uav;
+                UpdateEnds(slot, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
+            }
+        }
+
+        // Compute output textures
+        for (unsigned i = 0; i < impl_->shaderProgram_->accessViewTextures_.Size(); ++i)
+        {
+            const SlotTexturePair& pair = impl_->shaderProgram_->accessViewTextures_.At(i);
+            unsigned slot = pair.first_;
+            Texture* texture = pair.second_.Get();
+            ID3D11UnorderedAccessView* uav = 0;
+            if (texture)
+                uav = (ID3D11UnorderedAccessView*)texture->GetUnorderedAccessView();
+            if (uav != impl_->unorderedAccessViews_[slot])
+            {
+                impl_->unorderedAccessViews_[slot] = uav;
+                UpdateEnds(slot, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
+            }
+        }
     }
     else
         impl_->shaderProgram_ = nullptr;
@@ -1289,15 +1328,7 @@ void Graphics::SetTexture(unsigned index, Texture* texture)
 
     if (texture != textures_[index])
     {
-        if (impl_->firstDirtyTexture_ == M_MAX_UNSIGNED)
-            impl_->firstDirtyTexture_ = impl_->lastDirtyTexture_ = index;
-        else
-        {
-            if (index < impl_->firstDirtyTexture_)
-                impl_->firstDirtyTexture_ = index;
-            if (index > impl_->lastDirtyTexture_)
-                impl_->lastDirtyTexture_ = index;
-        }
+        UpdateEnds(index, impl_->firstDirtyTexture_, impl_->lastDirtyTexture_);        
 
         textures_[index] = texture;
         impl_->shaderResourceViews_[index] = texture ? (ID3D11ShaderResourceView*)texture->GetShaderResourceView() : nullptr;
@@ -1874,7 +1905,7 @@ void Graphics::CleanupShaderPrograms(ShaderVariation* variation)
 {
     for (ShaderProgramMap::Iterator i = impl_->shaderPrograms_.Begin(); i != impl_->shaderPrograms_.End();)
     {
-        if (i->first_.first_ == variation || i->first_.second_ == variation)
+        if (i->first_.Contains(variation))
             i = impl_->shaderPrograms_.Erase(i);
         else
             ++i;
@@ -1889,20 +1920,83 @@ void Graphics::CleanupRenderSurface(RenderSurface* surface)
     // No-op on Direct3D11
 }
 
-ConstantBuffer* Graphics::GetOrCreateConstantBuffer(ShaderType type, unsigned index, unsigned size)
+ConstantBuffer* Graphics::GetOrCreateConstantBuffer(ShaderType type, StringHash name, const ShaderResource* resource)
 {
+    if (!resource)
+        return nullptr;
+
     // Ensure that different shader types and index slots get unique buffers, even if the size is same
-    unsigned key = type | (index << 1) | (size << 4);
+    assert(MAX_SHADER_TYPE <= 4);
+    unsigned key = type | (resource->bindSlot_ << 2) | (resource->size_ << 5);
     ConstantBufferMap::Iterator i = impl_->allConstantBuffers_.Find(key);
     if (i != impl_->allConstantBuffers_.End())
         return i->second_.Get();
-    else
+    
+    // However is the name is the same, get the same buffer (the penalty is the same as creating a unique
+    // buffer for each stage)
+    HashMap<StringHash, unsigned>::Iterator j = impl_->constantBuffersKeys_.Find(name);
+    if (j != impl_->constantBuffersKeys_.End())
     {
-        SharedPtr<ConstantBuffer> newConstantBuffer(new ConstantBuffer(context_));
-        newConstantBuffer->SetSize(size);
-        impl_->allConstantBuffers_[key] = newConstantBuffer;
-        return newConstantBuffer.Get();
+        key = j->second_;
+        i = impl_->allConstantBuffers_.Find(key);
+        if (i != impl_->allConstantBuffers_.End())
+            return i->second_.Get();
     }
+
+    SharedPtr<ConstantBuffer> newConstantBuffer(new ConstantBuffer(context_));
+    newConstantBuffer->SetSize(resource->size_);
+    impl_->constantBuffersKeys_[name] = key;
+    impl_->allConstantBuffers_[key] = newConstantBuffer;
+    return newConstantBuffer.Get();
+}
+
+void Graphics::AddShaderBuffer(StringHash bufferName, ShaderBuffer* buffer)
+{
+    impl_->shaderBuffers_[bufferName] = buffer;
+}
+
+ShaderBuffer* Graphics::GetShaderBuffer(StringHash bufferName)
+{
+    HashMap<StringHash, SharedPtr<ShaderBuffer> >::Iterator i = impl_->shaderBuffers_.Find(bufferName);
+    if (i != impl_->shaderBuffers_.End())
+        return i->second_.Get();
+    else
+        return nullptr;
+}
+
+void Graphics::ClearComputeTargets()
+{
+    impl_->computeTargets_.Clear();
+}
+
+void Graphics::AddComputeTarget(StringHash targetName, Texture* texture)
+{
+    impl_->computeTargets_[targetName] = texture;
+}
+
+void Graphics::ClearComputeTargetsSlots()
+{
+    impl_->computeTargetsSlots_.Clear();
+}
+
+void Graphics::SetComputeTargetSlot(StringHash targetName, unsigned slot)
+{
+    impl_->computeTargetsSlots_[slot] = targetName;
+}
+
+Texture* Graphics::GetComputeTarget(StringHash targetName, unsigned slot)
+{
+    if (!impl_->computeTargetsSlots_.Empty())
+    {
+        HashMap<unsigned, StringHash >::Iterator j = impl_->computeTargetsSlots_.Find(slot);
+        if (j != impl_->computeTargetsSlots_.End())
+            targetName = j->second_;
+    }
+    HashMap<StringHash, WeakPtr<Texture> >::Iterator i = impl_->computeTargets_.Find(targetName);
+    if (i != impl_->computeTargets_.End())
+        return i->second_.Get();
+    else
+        return nullptr;
 }
 
 unsigned Graphics::GetAlphaFormat()
@@ -1972,6 +2066,11 @@ unsigned Graphics::GetFloat32Format()
     return DXGI_FORMAT_R32_FLOAT;
 }
 
+unsigned Graphics::GetUint32Format()
+{
+    return DXGI_FORMAT_R32_UINT;
+}
+
 unsigned Graphics::GetLinearDepthFormat()
 {
     return DXGI_FORMAT_R32_FLOAT;
@@ -2017,6 +2116,8 @@ unsigned Graphics::GetFormat(const String& formatName)
         return GetFloat16Format();
     if (nameLower == "r32f" || nameLower == "float")
         return GetFloat32Format();
+    if (nameLower == "r32u" || nameLower == "uint")
+        return GetUint32Format();
     if (nameLower == "lineardepth" || nameLower == "depth")
         return GetLinearDepthFormat();
     if (nameLower == "d24s8")
@@ -2406,8 +2507,29 @@ void Graphics::PrepareDraw()
             (!depthStencil_ || (depthStencil_ && depthStencil_->GetWidth() == width_ && depthStencil_->GetHeight() == height_)))
             impl_->renderTargetViews_[0] = impl_->defaultRenderTargetView_;
 
-        impl_->deviceContext_->OMSetRenderTargets(MAX_RENDERTARGETS, &impl_->renderTargetViews_[0], impl_->depthStencilView_);
+        if (impl_->firstDirtyUav_ < M_MAX_UNSIGNED)
+        {
+            unsigned numRTVs = impl_->firstDirtyUav_;
+            unsigned numUAVs = impl_->lastDirtyUav_ - impl_->firstDirtyUav_ + 1;
+            impl_->deviceContext_->OMSetRenderTargetsAndUnorderedAccessViews(
+                numRTVs, &impl_->renderTargetViews_[0], impl_->depthStencilView_,
+                impl_->firstDirtyUav_, numUAVs, &impl_->unorderedAccessViews_[impl_->firstDirtyUav_], 0);
+
+            impl_->firstDirtyUav_ = impl_->lastDirtyUav_ = M_MAX_UNSIGNED;
+        }
+        else
+            impl_->deviceContext_->OMSetRenderTargets(MAX_RENDERTARGETS, &impl_->renderTargetViews_[0], impl_->depthStencilView_);
+
         impl_->renderTargetsDirty_ = false;
+    }
+    else if (impl_->firstDirtyUav_ < M_MAX_UNSIGNED)
+    {
+        unsigned numUAVs = impl_->lastDirtyUav_ - impl_->firstDirtyUav_ + 1;
+        impl_->deviceContext_->OMSetRenderTargetsAndUnorderedAccessViews(
+            D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, 0, 0,
+            impl_->firstDirtyUav_, numUAVs, &impl_->unorderedAccessViews_[impl_->firstDirtyUav_], 0);
+
+        impl_->firstDirtyUav_ = impl_->lastDirtyUav_ = M_MAX_UNSIGNED;
     }
 
     if (impl_->texturesDirty_ && impl_->firstDirtyTexture_ < M_MAX_UNSIGNED)
