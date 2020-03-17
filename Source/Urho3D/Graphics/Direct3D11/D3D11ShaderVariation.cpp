@@ -465,8 +465,8 @@ void ShaderVariation::ParseParameters(unsigned char* bufData, unsigned bufSize)
                 if (varName[0] == 'c')
                 {
                     varName = varName.Substring(1); // Strip the c to follow Urho3D constant naming convention
-                    parameters_[varName] = ShaderParameter(type_, varName, resource.bindSlot_,
-                        varDesc.StartOffset, varDesc.Size);
+                    parameters_[varName] = ShaderParameter(type_, varName, varDesc.StartOffset, 
+                        varDesc.Size, resource.bindSlot_);
                 }
             }
         }
