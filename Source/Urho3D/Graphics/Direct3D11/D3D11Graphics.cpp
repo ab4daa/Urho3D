@@ -1931,21 +1931,9 @@ ConstantBuffer* Graphics::GetOrCreateConstantBuffer(ShaderType type, StringHash 
     ConstantBufferMap::Iterator i = impl_->allConstantBuffers_.Find(key);
     if (i != impl_->allConstantBuffers_.End())
         return i->second_.Get();
-    
-    // However is the name is the same, get the same buffer (the penalty is the same as creating a unique
-    // buffer for each stage)
-    HashMap<StringHash, unsigned>::Iterator j = impl_->constantBuffersKeys_.Find(name);
-    if (j != impl_->constantBuffersKeys_.End())
-    {
-        key = j->second_;
-        i = impl_->allConstantBuffers_.Find(key);
-        if (i != impl_->allConstantBuffers_.End())
-            return i->second_.Get();
-    }
 
     SharedPtr<ConstantBuffer> newConstantBuffer(new ConstantBuffer(context_));
     newConstantBuffer->SetSize(resource->size_);
-    impl_->constantBuffersKeys_[name] = key;
     impl_->allConstantBuffers_[key] = newConstantBuffer;
     return newConstantBuffer.Get();
 }

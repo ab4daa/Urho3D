@@ -187,8 +187,6 @@ private:
     unsigned lastDirtyVB_;
     /// Vertex declarations.
     VertexDeclarationMap vertexDeclarations_;
-    /// Constant buffers name to key map.
-    HashMap<StringHash, unsigned> constantBuffersKeys_;
     /// Constant buffer search map.
     ConstantBufferMap allConstantBuffers_;
     /// Currently dirty constant buffers.
