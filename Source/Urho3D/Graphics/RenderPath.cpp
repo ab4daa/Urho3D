@@ -69,17 +69,8 @@ void RenderTargetInfo::Load(const XMLElement& element)
     if (element.HasAttribute("enabled"))
         enabled_ = element.GetBool("enabled");
 
-    if (element.HasAttribute("layers"))
-        layers_ = element.GetUInt("layers");
-
-    if (element.HasAttribute("type"))
-        type_ = ParseTextureTypeName(element.GetAttribute("type"));
-    else if (element.HasAttribute("cubemap"))
-    {
+    if (element.HasAttribute("cubemap"))
         cubemap_ = element.GetBool("cubemap");
-        type_ = ParseTextureTypeName("cubemap");
-        layers_ = 6;
-    }
 
     String formatName = element.GetAttribute("format");
     format_ = Graphics::GetFormat(formatName);
@@ -255,7 +246,6 @@ void RenderPathCommand::SetTextureName(TextureUnit unit, const String& name)
 
 void RenderPathCommand::SetShaderParameter(const String& name, const Variant& value)
 {
-    shaderParametersDirty_ = true;
     shaderParameters_[name] = value;
 }
 

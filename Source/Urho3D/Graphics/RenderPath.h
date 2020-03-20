@@ -74,16 +74,12 @@ struct URHO3D_API RenderTargetInfo
     String name_;
     /// Tag name.
     String tag_;
-    /// Texture type.
-    StringHash type_;
     /// Texture format.
     unsigned format_{};
     /// Absolute size or multiplier.
     Vector2 size_;
     /// Size mode.
     RenderTargetSizeMode sizeMode_{SIZE_ABSOLUTE};
-    /// Number of layers.
-    unsigned layers_{ 1 };
     /// Multisampling level (1 = no multisampling).
     int multiSample_{1};
     /// Multisampling autoresolve flag.
@@ -164,8 +160,6 @@ struct URHO3D_API RenderPathCommand
     String textureNames_[MAX_TEXTURE_UNITS];
     /// %Shader parameters.
     HashMap<StringHash, Variant> shaderParameters_;
-    /// Shader parameters changed flag.
-    bool shaderParametersDirty_{ false };
     /// Output rendertarget names and faces.
     Vector<Pair<String, CubeMapFace> > outputs_;
     /// Depth-stencil output name.
