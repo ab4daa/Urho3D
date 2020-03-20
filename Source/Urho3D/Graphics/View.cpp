@@ -1553,6 +1553,9 @@ void View::ExecuteRenderPathCommands()
                     currentRenderTarget_ = substituteRenderTarget_ ? substituteRenderTarget_ : renderTarget_;
             }
 
+            for (unsigned index = 0; index < command.outputs_.Size(); ++index)
+                graphics_->SetComputeTargetSlot(command.outputs_[index].first_, index);
+
             switch (command.type_)
             {
             case CMD_CLEAR:
@@ -1710,6 +1713,7 @@ void View::ExecuteRenderPathCommands()
             default:
                 break;
             }
+            graphics_->ClearComputeTargetsSlots();
 
             // If current command output to the viewport, mark it modified
             if (viewportWrite)
@@ -2057,6 +2061,8 @@ void View::AllocateScreenBuffers()
     if (numViewportTextures == 1 && substituteRenderTarget_)
         viewportTextures_[1] = substituteRenderTarget_->GetParentTexture();
 
+    graphics_->ClearComputeTargets();
+
     // Allocate extra render targets defined by the render path
     for (unsigned i = 0; i < renderPath_->renderTargets_.Size(); ++i)
     {
@@ -2082,10 +2088,15 @@ void View::AllocateScreenBuffers()
         auto intHeight = RoundToInt(height);
 
         // If the rendertarget is persistent, key it with a hash derived from the RT name and the view's pointer
-        renderTargets_[rtInfo.name_] =
+        const StringHash nameHash(rtInfo.name_);
+        Texture* renderTarget =
             renderer_->GetScreenBuffer(intWidth, intHeight, rtInfo.format_, rtInfo.multiSample_, rtInfo.autoResolve_,
                 rtInfo.cubemap_, rtInfo.filtered_, rtInfo.sRGB_, rtInfo.compute_,
                 rtInfo.persistent_ ? StringHash(rtInfo.name_).Value() + (unsigned)(size_t)this : 0);
+        renderTargets_[nameHash] = renderTarget;
+
+        if (rtInfo.compute_)
+            graphics_->AddComputeTarget(nameHash, renderTarget);
     }
 }
 

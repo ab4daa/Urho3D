@@ -29,6 +29,7 @@
 #include "../../Math/Color.h"
 
 #include <d3d11.h>
+#include <d3d11_3.h>
 #include <dxgi.h>
 
 namespace Urho3D

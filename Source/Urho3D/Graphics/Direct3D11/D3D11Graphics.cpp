@@ -1089,7 +1089,8 @@ void Graphics::SetShaders(ShaderVariation* vs, ShaderVariation* ps)
             unsigned slot = pair.first_;
             ShaderBuffer* buffer = pair.second_;
             ID3D11UnorderedAccessView* uav = (ID3D11UnorderedAccessView*)buffer->GetUnorderedAccessView();
-            if (uav != impl_->unorderedAccessViews_[slot])
+            // Because UAV shares same slots with RTV, always dirty it when someone wants to bind
+            //if (uav != impl_->unorderedAccessViews_[slot])
             {
                 impl_->unorderedAccessViews_[slot] = uav;
                 UpdateEnds(slot, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
@@ -1105,7 +1106,8 @@ void Graphics::SetShaders(ShaderVariation* vs, ShaderVariation* ps)
             ID3D11UnorderedAccessView* uav = 0;
             if (texture)
                 uav = (ID3D11UnorderedAccessView*)texture->GetUnorderedAccessView();
-            if (uav != impl_->unorderedAccessViews_[slot])
+            // Because UAV shares same slots with RTV, always dirty it when someone wants to bind
+            //if (uav != impl_->unorderedAccessViews_[slot])
             {
                 impl_->unorderedAccessViews_[slot] = uav;
                 UpdateEnds(slot, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
@@ -1974,12 +1976,10 @@ void Graphics::SetComputeTargetSlot(StringHash targetName, unsigned slot)
 
 Texture* Graphics::GetComputeTarget(StringHash targetName, unsigned slot)
 {
-    if (!impl_->computeTargetsSlots_.Empty())
-    {
-        HashMap<unsigned, StringHash >::Iterator j = impl_->computeTargetsSlots_.Find(slot);
-        if (j != impl_->computeTargetsSlots_.End())
-            targetName = j->second_;
-    }
+    HashMap<unsigned, StringHash >::Iterator j = impl_->computeTargetsSlots_.Find(slot);
+    if (j != impl_->computeTargetsSlots_.End())
+        targetName = j->second_;
+
     HashMap<StringHash, WeakPtr<Texture> >::Iterator i = impl_->computeTargets_.Find(targetName);
     if (i != impl_->computeTargets_.End())
         return i->second_.Get();
@@ -2196,13 +2196,19 @@ bool Graphics::CreateDevice(int width, int height, int multiSample)
     // Device needs only to be created once
     if (!impl_->device_)
     {
+        const D3D_FEATURE_LEVEL featureLevels[] =
+        {
+            D3D_FEATURE_LEVEL_11_1,
+            D3D_FEATURE_LEVEL_11_0
+        };
+        const UINT numFeatureLevels = ARRAYSIZE(featureLevels);
         HRESULT hr = D3D11CreateDevice(
             nullptr,
             D3D_DRIVER_TYPE_HARDWARE,
             nullptr,
             0,
-            nullptr,
-            0,
+            featureLevels,
+            numFeatureLevels,
             D3D11_SDK_VERSION,
             &impl_->device_,
             nullptr,
@@ -2388,6 +2394,35 @@ void Graphics::CheckFeatureSupport()
     dummyColorFormat_ = DXGI_FORMAT_UNKNOWN;
     sRGBSupport_ = true;
     sRGBWriteSupport_ = true;
+
+    D3D11_FEATURE_DATA_D3D11_OPTIONS2 FeatureData;
+    ZeroMemory(&FeatureData, sizeof(FeatureData));
+
+    ID3D11Device3* device;
+    HRESULT hr = impl_->device_->QueryInterface(__uuidof(ID3D11Device3), (void**)&device);
+    if (SUCCEEDED(hr))
+    {
+        hr = device->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2, &FeatureData, sizeof(FeatureData));
+        if (SUCCEEDED(hr))
+        {
+            if (FeatureData.ROVsSupported != 0)
+            {
+                URHO3D_LOGINFO("D3D11_3 ROV support OK");
+            }
+            else
+            {
+                URHO3D_LOGERROR("D3D11_3 ROV support NG");
+            }
+        }
+        else
+        {
+            URHO3D_LOGD3DERROR("CheckFeatureSupport D3D11_FEATURE_D3D11_OPTIONS2 fail", hr);
+        }
+    }
+    else
+    {
+        URHO3D_LOGD3DERROR("QueryInterface ID3D11Device3 fail", hr);
+    }
 }
 
 void Graphics::ResetCachedState()
@@ -2474,7 +2509,7 @@ void Graphics::ResetCachedState()
 
 void Graphics::PrepareDraw()
 {
-    if (impl_->renderTargetsDirty_)
+    if (impl_->renderTargetsDirty_ || impl_->firstDirtyUav_ < M_MAX_UNSIGNED)
     {
         impl_->depthStencilView_ =
             (depthStencil_ && depthStencil_->GetUsage() == TEXTURE_DEPTHSTENCIL) ?
@@ -2495,10 +2530,12 @@ void Graphics::PrepareDraw()
             (!depthStencil_ || (depthStencil_ && depthStencil_->GetWidth() == width_ && depthStencil_->GetHeight() == height_)))
             impl_->renderTargetViews_[0] = impl_->defaultRenderTargetView_;
 
+        // If UAV dirty, means someone actually wants to bind UAV
+        // else, means actually no use of UAV
         if (impl_->firstDirtyUav_ < M_MAX_UNSIGNED)
         {
-            unsigned numRTVs = impl_->firstDirtyUav_;
-            unsigned numUAVs = impl_->lastDirtyUav_ - impl_->firstDirtyUav_ + 1;
+            const unsigned numRTVs = impl_->firstDirtyUav_;
+            const unsigned numUAVs = impl_->lastDirtyUav_ - impl_->firstDirtyUav_ + 1;
             impl_->deviceContext_->OMSetRenderTargetsAndUnorderedAccessViews(
                 numRTVs, &impl_->renderTargetViews_[0], impl_->depthStencilView_,
                 impl_->firstDirtyUav_, numUAVs, &impl_->unorderedAccessViews_[impl_->firstDirtyUav_], 0);
@@ -2506,18 +2543,13 @@ void Graphics::PrepareDraw()
             impl_->firstDirtyUav_ = impl_->lastDirtyUav_ = M_MAX_UNSIGNED;
         }
         else
-            impl_->deviceContext_->OMSetRenderTargets(MAX_RENDERTARGETS, &impl_->renderTargetViews_[0], impl_->depthStencilView_);
+        {            
+            impl_->deviceContext_->OMSetRenderTargetsAndUnorderedAccessViews(
+                MAX_RENDERTARGETS, &impl_->renderTargetViews_[0], impl_->depthStencilView_,
+                0, 0, 0, 0);
+        }
 
         impl_->renderTargetsDirty_ = false;
-    }
-    else if (impl_->firstDirtyUav_ < M_MAX_UNSIGNED)
-    {
-        unsigned numUAVs = impl_->lastDirtyUav_ - impl_->firstDirtyUav_ + 1;
-        impl_->deviceContext_->OMSetRenderTargetsAndUnorderedAccessViews(
-            D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, 0, 0,
-            impl_->firstDirtyUav_, numUAVs, &impl_->unorderedAccessViews_[impl_->firstDirtyUav_], 0);
-
-        impl_->firstDirtyUav_ = impl_->lastDirtyUav_ = M_MAX_UNSIGNED;
     }
 
     if (impl_->texturesDirty_ && impl_->firstDirtyTexture_ < M_MAX_UNSIGNED)

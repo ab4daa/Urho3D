@@ -404,7 +404,7 @@ bool Texture2D::Create()
 
     textureDesc.Usage = usage_ == TEXTURE_DYNAMIC ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_DEFAULT;
     textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    if (usage_ == TEXTURE_RENDERTARGET)
+    if (usage_ == TEXTURE_RENDERTARGET || usage_ == TEXTURE_COMPUTETARGET)
         textureDesc.BindFlags |= D3D11_BIND_RENDER_TARGET;
     else if (usage_ == TEXTURE_DEPTHSTENCIL)
         textureDesc.BindFlags |= D3D11_BIND_DEPTH_STENCIL;
@@ -416,7 +416,7 @@ bool Texture2D::Create()
     if (usage_ == TEXTURE_DEPTHSTENCIL && multiSample_ > 1 && graphics_->GetImpl()->GetDevice()->GetFeatureLevel() < D3D_FEATURE_LEVEL_10_1)
         textureDesc.BindFlags &= ~D3D11_BIND_SHADER_RESOURCE;
 
-    HRESULT hr = graphics_->GetImpl()->GetDevice()->CreateTexture2D(&textureDesc, nullptr, (ID3D11Texture2D**)&object_);
+    HRESULT hr = graphics_->GetImpl()->GetDevice()->CreateTexture2D(&textureDesc, nullptr, (ID3D11Texture2D**)&object_.ptr_);
     if (FAILED(hr))
     {
         URHO3D_LOGD3DERROR("Failed to create texture", hr);
@@ -465,12 +465,6 @@ bool Texture2D::Create()
 
     if (usage_ == TEXTURE_COMPUTETARGET)
     {
-        D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc;
-        memset(&uavDesc, 0, sizeof uavDesc);
-        uavDesc.Format = (DXGI_FORMAT)GetSRVFormat(textureDesc.Format);
-        uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-        uavDesc.Texture2D.MipSlice = 0;
-
         hr = graphics_->GetImpl()->GetDevice()->CreateUnorderedAccessView((ID3D11Resource*)object_.ptr_, 0,
             (ID3D11UnorderedAccessView**)&unorderedAccessView_);
         if (FAILED(hr))
