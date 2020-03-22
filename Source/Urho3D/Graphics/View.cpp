@@ -534,6 +534,7 @@ void View::Update(const FrameInfo& frame)
 
     // Clear buffers, geometry, light, occluder & batch list
     renderTargets_.Clear();
+    shaderBuffers_.Clear();
     geometries_.Clear();
     lights_.Clear();
     zones_.Clear();
@@ -1809,6 +1810,14 @@ bool View::SetTextures(RenderPathCommand& command)
             continue;
         }
 
+        // If it is a SRV of shader buffer
+        if (shaderBuffers_.Contains(command.textureNames_[i]))
+        {
+            ShaderBuffer* buffer = shaderBuffers_[command.textureNames_[i]];
+            graphics_->SetShaderBuffer(i, buffer);
+            continue;
+        }
+
 #ifdef DESKTOP_GRAPHICS
         Texture* texture = FindNamedTexture(command.textureNames_[i], false, i == TU_VOLUMEMAP);
 #else
@@ -2087,16 +2096,29 @@ void View::AllocateScreenBuffers()
         auto intWidth = RoundToInt(width);
         auto intHeight = RoundToInt(height);
 
-        // If the rendertarget is persistent, key it with a hash derived from the RT name and the view's pointer
-        const StringHash nameHash(rtInfo.name_);
-        Texture* renderTarget =
-            renderer_->GetScreenBuffer(intWidth, intHeight, rtInfo.format_, rtInfo.multiSample_, rtInfo.autoResolve_,
-                rtInfo.cubemap_, rtInfo.filtered_, rtInfo.sRGB_, rtInfo.compute_,
-                rtInfo.persistent_ ? StringHash(rtInfo.name_).Value() + (unsigned)(size_t)this : 0);
-        renderTargets_[nameHash] = renderTarget;
+        if (!rtInfo.shaderBuffer_)
+        {
+            // If the rendertarget is persistent, key it with a hash derived from the RT name and the view's pointer
+            const StringHash nameHash(rtInfo.name_);
+            Texture* renderTarget =
+                renderer_->GetScreenBuffer(intWidth, intHeight, rtInfo.format_, rtInfo.multiSample_, rtInfo.autoResolve_,
+                    rtInfo.cubemap_, rtInfo.filtered_, rtInfo.sRGB_, rtInfo.compute_,
+                    rtInfo.persistent_ ? StringHash(rtInfo.name_).Value() + (unsigned)(size_t)this : 0);
+            renderTargets_[nameHash] = renderTarget;
 
-        if (rtInfo.compute_)
-            graphics_->AddComputeTarget(nameHash, renderTarget);
+            if (rtInfo.compute_)
+                graphics_->AddComputeTarget(nameHash, renderTarget);
+        }
+        else
+        {
+            const StringHash nameHash(rtInfo.name_);
+            ShaderBuffer* rwbuffer =
+                renderer_->GetScreenBuffer(intWidth, intHeight, rtInfo.structSize, 
+                    rtInfo.persistent_ ? StringHash(rtInfo.name_).Value() + (unsigned)(size_t)this : 0);
+            shaderBuffers_[nameHash] = rwbuffer;
+
+            graphics_->AddShaderBuffer(nameHash, rwbuffer);
+        }
     }
 }
 

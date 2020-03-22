@@ -1339,6 +1339,19 @@ void Graphics::SetTexture(unsigned index, Texture* texture)
     }
 }
 
+void Graphics::SetShaderBuffer(unsigned index, ShaderBuffer* buffer)
+{
+    if (index >= MAX_TEXTURE_UNITS)
+        return;
+
+    UpdateEnds(index, impl_->firstDirtyTexture_, impl_->lastDirtyTexture_);
+
+    textures_[index] = nullptr;
+    impl_->shaderResourceViews_[index] = buffer ? (ID3D11ShaderResourceView*)buffer->GetShaderResourceView() : nullptr;
+    impl_->samplers_[index] = nullptr;
+    impl_->texturesDirty_ = true;
+}
+
 void SetTextureForUpdate(Texture* texture)
 {
     // No-op on Direct3D11
@@ -1945,8 +1958,12 @@ void Graphics::AddShaderBuffer(StringHash bufferName, ShaderBuffer* buffer)
     impl_->shaderBuffers_[bufferName] = buffer;
 }
 
-ShaderBuffer* Graphics::GetShaderBuffer(StringHash bufferName)
+ShaderBuffer* Graphics::GetShaderBuffer(StringHash bufferName, unsigned slot)
 {
+    HashMap<unsigned, StringHash >::Iterator j = impl_->computeTargetsSlots_.Find(slot);
+    if (j != impl_->computeTargetsSlots_.End())
+        bufferName = j->second_;
+
     HashMap<StringHash, SharedPtr<ShaderBuffer> >::Iterator i = impl_->shaderBuffers_.Find(bufferName);
     if (i != impl_->shaderBuffers_.End())
         return i->second_.Get();

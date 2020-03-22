@@ -6,7 +6,12 @@
 #ifdef COMPILEPS
 	#ifndef D3D11
 	#else
-	RasterizerOrderedTexture2D<uint> writebuf: register(u0);
+    struct testRWStruc
+    {
+        uint data;
+    };
+	RasterizerOrderedTexture2D<uint> writebuf : register(u0);
+    RWStructuredBuffer<testRWStruc> writebuf2 : register(u1);
 	#endif
 #endif
 
@@ -29,4 +34,7 @@ void PS(
 {
     uint2 pixelAddr = uint2(iPos.xy);
     writebuf[pixelAddr] = uint(iPos.x*abs(sin(cElapsedTimePS)));    
+    uint2 dim;
+	writebuf.GetDimensions(dim[0], dim[1]);
+    writebuf2[pixelAddr.y * dim.x + pixelAddr.x].data = uint(iPos.x*abs(sin(cElapsedTimePS)));
 }

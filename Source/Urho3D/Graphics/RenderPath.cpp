@@ -116,6 +116,12 @@ void RenderTargetInfo::Load(const XMLElement& element)
         multiSample_ = Clamp(element.GetInt("multisample"), 1, 16);
     if (element.HasAttribute("autoresolve"))
         autoResolve_ = element.GetBool("autoresolve");
+
+    if (element.HasAttribute("shaderbuffer"))
+        shaderBuffer_ = element.GetBool("shaderbuffer");
+
+    if (element.HasAttribute("structsize"))
+        structSize = element.GetUInt("structsize");
 }
 
 void RenderPathCommand::Load(const XMLElement& element)

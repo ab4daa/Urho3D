@@ -59,7 +59,7 @@ public:
             HashMap<StringHash, ShaderResource> resources = shader->GetResources();
             for (HashMap<StringHash, ShaderResource>::ConstIterator i = resources.Begin(); i != resources.End(); ++i)
             {
-                StringHash resourceHash = i->first_;
+                const StringHash& resourceHash = i->first_;
                 const ShaderResource& resource = i->second_;
                 if (resource.type_ == SR_CBV)
                 {
@@ -75,10 +75,11 @@ public:
                         parameters_[j->first_].bufferPtr_ = constantBuffers_[shaderType][j->second_.buffer_].Get();
                     }
                 }
+#if 0
                 else if (resource.type_ == SR_SRV)
                 {
                     // Get the structured buffer, it should be already created by the user
-                    ShaderBuffer* buffer = graphics->GetShaderBuffer(resourceHash);
+                    ShaderBuffer* buffer = graphics->GetShaderBuffer(resourceHash, resource.bindSlot_);
                     if (!buffer)
                         URHO3D_LOGERROR("SRV buffer " + resource.name_ + " not defined");
                     else if (resource.size_ && buffer->GetElementSize() != resource.size_)
@@ -89,10 +90,11 @@ public:
                     else
                         resourceViewBuffers_.Push(MakePair(resource.bindSlot_, SharedPtr<ShaderBuffer>(buffer)));
                 }
+#endif
                 else if (resource.type_ == SR_UAV_STRUCTURED)
                 {
                     // Get the unordered buffer, it should be already created by the user
-                    ShaderBuffer* buffer = graphics->GetShaderBuffer(resourceHash);
+                    ShaderBuffer* buffer = graphics->GetShaderBuffer(resourceHash, resource.bindSlot_);
                     if (!buffer)
                         URHO3D_LOGERROR("UAV buffer " + resource.name_ + " not defined");
                     else if (resource.size_ && buffer->GetElementSize() != resource.size_)

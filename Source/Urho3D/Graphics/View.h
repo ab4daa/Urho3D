@@ -46,6 +46,7 @@ class RenderSurface;
 class Technique;
 class Texture;
 class Texture2D;
+class ShaderBuffer;
 class Viewport;
 class Zone;
 struct RenderPathCommand;
@@ -407,6 +408,8 @@ private:
     HashSet<Drawable*> maxLightsDrawables_;
     /// Rendertargets defined by the renderpath.
     HashMap<StringHash, Texture*> renderTargets_;
+    /// ShaderBuffers defined by the renderpath.
+    HashMap<StringHash, ShaderBuffer*> shaderBuffers_;
     /// Intermediate light processing results.
     Vector<LightQueryResult> lightQueryResults_;
     /// Info for scene render passes defined by the renderpath.
