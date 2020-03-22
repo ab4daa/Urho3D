@@ -1094,6 +1094,40 @@ Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, int m
     }
 }
 
+ShaderBuffer* Renderer::GetScreenBuffer(int width, int height, unsigned structSize, unsigned persistentKey)
+{
+    assert(width > 0 && height > 0);
+    unsigned numElem = width * height;
+    unsigned long long searchKey = (unsigned long long)numElem << 32u | structSize;
+
+    // Add persistent key if defined
+    if (persistentKey)
+        searchKey += (unsigned long long)persistentKey;
+
+    if (shaderBuffers_.Find(searchKey) == shaderBuffers_.End())
+        shaderBufferAllocations_[searchKey] = 0;
+
+    unsigned allocations = shaderBufferAllocations_[searchKey];
+    if (persistentKey)
+        ++shaderBufferAllocations_[searchKey];
+
+    if (allocations >= shaderBuffers_[searchKey].Size())
+    {
+        const unsigned usages = ShaderBuffer::BUFFER_STRUCTURED | ShaderBuffer::BUFFER_READ | ShaderBuffer::BUFFER_WRITE;
+        SharedPtr<ShaderBuffer> newBuffer = MakeShared<ShaderBuffer>(context_, usages);
+        newBuffer->SetSize(structSize, numElem);
+        shaderBuffers_[searchKey].Push(newBuffer);
+
+        URHO3D_LOGDEBUG("Allocated new shader buffer count " + String(numElem) + " size " + String(structSize));
+        return newBuffer;
+    }
+    else
+    {
+        ShaderBuffer* buffer = shaderBuffers_[searchKey][allocations];
+        return buffer;
+    }
+}
+
 RenderSurface* Renderer::GetDepthStencil(int width, int height, int multiSample, bool autoResolve)
 {
     // Return the default depth-stencil surface if applicable
@@ -1583,6 +1617,12 @@ void Renderer::ResetScreenBufferAllocations()
         i->second_ = 0;
 }
 
+void Renderer::ResetShaderBufferAllocations()
+{
+    for (HashMap<unsigned long long, unsigned>::Iterator i = shaderBufferAllocations_.Begin(); i != shaderBufferAllocations_.End(); ++i)
+        i->second_ = 0;
+}
+
 void Renderer::Initialize()
 {
     auto* graphics = GetSubsystem<Graphics>();
@@ -1915,6 +1955,8 @@ void Renderer::ResetBuffers()
     occlusionBuffers_.Clear();
     screenBuffers_.Clear();
     screenBufferAllocations_.Clear();
+    shaderBuffers_.Clear();
+    shaderBufferAllocations_.Clear();
 }
 
 String Renderer::GetShadowVariations() const

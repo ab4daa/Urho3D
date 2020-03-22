@@ -96,6 +96,10 @@ struct URHO3D_API RenderTargetInfo
     bool persistent_{};
     /// Compute target flag, when it is used as output in a compute shader.
     bool compute_{ false };
+    /// Is this RT a shaderbuffer?
+    bool shaderBuffer_{ false };
+    /// struct size of RWStructuredBuffer
+    unsigned structSize{ 1 };
 };
 
 /// Rendering path command.

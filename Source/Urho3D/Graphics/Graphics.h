@@ -193,6 +193,8 @@ public:
     void ClearTransformSources();
     /// Set texture.
     void SetTexture(unsigned index, Texture* texture);
+    /// Set SRV of shader buffer.
+    void SetShaderBuffer(unsigned index, ShaderBuffer* buffer);
     /// Bind texture unit 0 for update. Called by Texture. Used only on OpenGL.
     void SetTextureForUpdate(Texture* texture);
     /// Dirty texture parameters of all textures (when global settings change.)
@@ -525,7 +527,7 @@ public:
     /// Add a ShaderBuffer to be accessible by shaders.
     void AddShaderBuffer(StringHash bufferName, ShaderBuffer* buffer);
     /// Get a ShaderBuffer by name.
-    ShaderBuffer* GetShaderBuffer(StringHash bufferName);
+    ShaderBuffer* GetShaderBuffer(StringHash bufferName, unsigned slot);
     /// Clear compute targets.
     void ClearComputeTargets();
     /// Add a compute target.

@@ -6,7 +6,12 @@
 #ifdef COMPILEPS
 	#ifndef D3D11
 	#else
-	Texture2D<uint> readbuf: register(t0);
+    struct testRWStruc
+    {
+        uint data;
+    };
+	Texture2D<uint> readbuf : register(t0);
+    StructuredBuffer<testRWStruc> readbuf2 : register(t1);
 	#endif
 #endif
 
@@ -29,8 +34,11 @@ void PS(
     out float4 oColor : OUTCOLOR0)
 {
     uint2 pixelAddr = uint2(iPos.xy);
-    oColor = float4(float(readbuf[pixelAddr])  * cGBufferInvSize.x,
-        0.0,
+    uint2 dim;
+	readbuf.GetDimensions(dim[0], dim[1]);
+    
+    oColor = float4(float(readbuf[pixelAddr]) * cGBufferInvSize.x,
+        float(readbuf2[pixelAddr.y * dim.x + pixelAddr.x].data) * cGBufferInvSize.x,
         0.0,
         1.0 );  
 }

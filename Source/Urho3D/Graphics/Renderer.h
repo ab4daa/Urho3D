@@ -29,6 +29,7 @@
 #include "../Graphics/Batch.h"
 #include "../Graphics/Drawable.h"
 #include "../Graphics/Viewport.h"
+#include "../Graphics/ShaderBuffer.h"
 #include "../Math/Color.h"
 
 namespace Urho3D
@@ -401,6 +402,8 @@ public:
     /// Allocate a rendertarget or depth-stencil texture for deferred rendering or postprocessing. Should only be called during actual rendering, not before.
     Texture* GetScreenBuffer
         (int width, int height, unsigned format, int multiSample, bool autoResolve, bool cubemap, bool filtered, bool srgb, bool compute = false, unsigned persistentKey = 0);
+    /// Allocate a shaderbuffer
+    ShaderBuffer* GetScreenBuffer(int width, int height, unsigned structSize, unsigned persistentKey = 0);
     /// Allocate a depth-stencil surface that does not need to be readable. Should only be called during actual rendering, not before.
     RenderSurface* GetDepthStencil(int width, int height, int multiSample, bool autoResolve);
     /// Allocate an occlusion buffer.
@@ -457,6 +460,8 @@ private:
     void ResetShadowMapAllocations();
     /// Reset screem buffer allocation counts.
     void ResetScreenBufferAllocations();
+    /// Reset shader buffer allocation counts.
+    void ResetShaderBufferAllocations();
     /// Remove all shadow maps. Called when global shadow map resolution or format is changed.
     void ResetShadowMaps();
     /// Remove all occlusion and screen buffers.
@@ -514,6 +519,10 @@ private:
     HashMap<unsigned long long, Vector<SharedPtr<Texture> > > screenBuffers_;
     /// Current screen buffer allocations by resolution and format.
     HashMap<unsigned long long, unsigned> screenBufferAllocations_;
+    /// Shader buffers by size
+    HashMap<unsigned long long, Vector<SharedPtr<ShaderBuffer> > > shaderBuffers_;
+    /// Current shader buffer allocations by size
+    HashMap<unsigned long long, unsigned> shaderBufferAllocations_;
     /// Cache for light scissor queries.
     HashMap<Pair<Light*, Camera*>, Rect> lightScissorCache_;
     /// Backbuffer viewports.
