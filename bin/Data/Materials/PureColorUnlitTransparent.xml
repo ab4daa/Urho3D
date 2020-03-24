@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<material>
+	<technique name="Techniques/NoTextureUnlitAOIT.xml" />
+	<parameter name="MatDiffColor" value="0.166288 0.71073 0.8 0.5" />
+	
+</material>

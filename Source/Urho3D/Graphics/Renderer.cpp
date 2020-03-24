@@ -1568,6 +1568,7 @@ void Renderer::UpdateQueuedViewport(unsigned index)
 void Renderer::PrepareViewRender()
 {
     ResetScreenBufferAllocations();
+    ResetShaderBufferAllocations();
     lightScissorCache_.Clear();
     lightStencilValue_ = 1;
 }

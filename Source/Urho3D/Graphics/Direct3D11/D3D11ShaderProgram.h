@@ -33,10 +33,22 @@
 namespace Urho3D
 {
 
-/// A pair of a buffer and the slot where it is bound.
-typedef Pair<unsigned, SharedPtr<ShaderBuffer> > SlotBufferPair;
-/// A pair of a texture and the slot where it is bound.
-typedef Pair<unsigned, WeakPtr<Texture> > SlotTexturePair;
+/// A struct of a buffer and the slot where it is bound.
+struct SlotBufferSt {
+    SlotBufferSt(unsigned slot, const StringHash& namehash, ShaderBuffer* buffer)
+        : slot_(slot), nameHash_(namehash), buffer_(buffer){}
+    unsigned slot_;
+    StringHash nameHash_;
+    WeakPtr<ShaderBuffer> buffer_;
+};
+/// A struct of a texture and the slot where it is bound.
+struct SlotTextureSt {
+    SlotTextureSt(unsigned slot, const StringHash& namehash, Texture* texture)
+        : slot_(slot), nameHash_(namehash), texture_(texture) {}
+    unsigned slot_;
+    StringHash nameHash_;
+    WeakPtr<Texture> texture_;
+};
 
 /// Combined information for specific vertex and pixel shaders.
 class URHO3D_API ShaderProgram : public RefCounted
@@ -75,22 +87,6 @@ public:
                         parameters_[j->first_].bufferPtr_ = constantBuffers_[shaderType][j->second_.buffer_].Get();
                     }
                 }
-#if 0
-                else if (resource.type_ == SR_SRV)
-                {
-                    // Get the structured buffer, it should be already created by the user
-                    ShaderBuffer* buffer = graphics->GetShaderBuffer(resourceHash, resource.bindSlot_);
-                    if (!buffer)
-                        URHO3D_LOGERROR("SRV buffer " + resource.name_ + " not defined");
-                    else if (resource.size_ && buffer->GetElementSize() != resource.size_)
-                        URHO3D_LOGERROR("SRV buffer " + resource.name_ + " requires elements of size " + String(resource.size_) +
-                            " but it was created with size " + String(buffer->GetElementSize()));
-                    else if ((buffer->GetUsage() & ShaderBuffer::BUFFER_READ) == 0)
-                        URHO3D_LOGERROR("SRV buffer " + resource.name_ + " needs the BUFFER_READ flag");
-                    else
-                        resourceViewBuffers_.Push(MakePair(resource.bindSlot_, SharedPtr<ShaderBuffer>(buffer)));
-                }
-#endif
                 else if (resource.type_ == SR_UAV_STRUCTURED)
                 {
                     // Get the unordered buffer, it should be already created by the user
@@ -103,7 +99,7 @@ public:
                     else if ((buffer->GetUsage() & ShaderBuffer::BUFFER_WRITE) == 0)
                         URHO3D_LOGERROR("UAV buffer " + resource.name_ + " needs the BUFFER_WRITE flag");
                     else
-                        accessViewBuffers_.Push(MakePair(resource.bindSlot_, SharedPtr<ShaderBuffer>(buffer)));
+                        accessViewBuffers_.Push(SlotBufferSt(resource.bindSlot_, resourceHash, buffer));
                 }
                 else if (resource.type_ == SR_UAV_TYPED)
                 {
@@ -114,7 +110,7 @@ public:
                     else if (texture->GetUsage() != TEXTURE_COMPUTETARGET)
                         URHO3D_LOGERROR("UAV texture " + resource.name_ + " needs COMPUTETARGET usage");
                     else
-                        accessViewTextures_.Push(MakePair(resource.bindSlot_, WeakPtr<Texture>(texture)));
+                        accessViewTextures_.Push(SlotTextureSt(resource.bindSlot_, resourceHash, texture));
                 }
             }
         }
@@ -133,12 +129,10 @@ public:
     HashMap<StringHash, ShaderParameter> parameters_;
     /// Shader constant buffers.
     SharedPtr<ConstantBuffer> constantBuffers_[MAX_SHADER_TYPE][MAX_SHADER_PARAMETER_GROUPS];
-    /// Input buffers accessed by a shader resource views (SRV).
-    Vector< SlotBufferPair > resourceViewBuffers_;
     /// Output buffers accessed by a unordered access views (UAV).
-    Vector< SlotBufferPair > accessViewBuffers_;
+    Vector< SlotBufferSt > accessViewBuffers_;
     /// Output textures accessed by a unordered access views (UAV).
-    Vector< SlotTexturePair > accessViewTextures_;
+    Vector< SlotTextureSt > accessViewTextures_;
 };
 
 }

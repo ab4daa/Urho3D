@@ -113,7 +113,7 @@ void AOITLightTest::CreateScene()
             floorObject->SetMaterial(cache->GetResource<Material>("Materials/Stone.xml"));
         }
     }
-
+#if 0
     // Create groups of mushrooms, which act as shadow casters
     const unsigned NUM_MUSHROOMGROUPS = 25;
     const unsigned NUM_MUSHROOMS = 25;
@@ -199,6 +199,24 @@ void AOITLightTest::CreateScene()
         // for better shadow depth resolution
         light->SetShadowNearFarRatio(0.01f);
     }
+#endif
+    const Color planeColors[] = {
+        Color(1.0f, 0.0f, 0.0f, 0.75f),
+        Color(1.0f, 1.0f, 0.0f, 0.75f),
+        Color(0.0f, 0.0f, 1.0f, 0.75f)
+    };
+    for (unsigned ii = 0; ii < 3; ++ii)
+    {
+        Node* planeNode = scene_->CreateChild(String("plane") + String(ii));
+        planeNode->SetPosition(Vector3(0.0f, 0.0f, 5 * (ii+1)));
+        planeNode->SetRotation(Quaternion(Vector3::UP, Vector3::BACK));
+        planeNode->SetScale(10.0f);
+        auto* planeObject = planeNode->CreateComponent<StaticModel>();
+        planeObject->SetModel(cache->GetResource<Model>("Models/Plane.mdl"));
+        SharedPtr<Material> mat(cache->GetResource<Material>("Materials/PureColorUnlitTransparent.xml")->Clone());
+        mat->SetShaderParameter("MatDiffColor", planeColors[ii]);
+        planeObject->SetMaterial(mat);
+    }
 
     // Create the camera. Limit far clip distance to match the fog
     cameraNode_ = scene_->CreateChild("Camera");
@@ -206,7 +224,7 @@ void AOITLightTest::CreateScene()
     camera->SetFarClip(300.0f);
 
     // Set an initial position for the camera scene node above the plane
-    cameraNode_->SetPosition(Vector3(0.0f, 5.0f, 0.0f));
+    cameraNode_->SetPosition(Vector3(0.0f, 5.0f, -10.0f));
 }
 
 void AOITLightTest::CreateInstructions()
@@ -218,7 +236,8 @@ void AOITLightTest::CreateInstructions()
     auto* instructionText = ui->GetRoot()->CreateChild<Text>();
     instructionText->SetText(
         "Use WASD keys and mouse/touch to move\n"
-        "Space to toggle debug geometry"
+        "Space to toggle debug geometry\n"
+        "F3 to toggle AOIT"
     );
     instructionText->SetFont(cache->GetResource<Font>("Fonts/Anonymous Pro.ttf"), 15);
     // The text has multiple rows. Center them in relation to each other
@@ -228,6 +247,11 @@ void AOITLightTest::CreateInstructions()
     instructionText->SetHorizontalAlignment(HA_CENTER);
     instructionText->SetVerticalAlignment(VA_CENTER);
     instructionText->SetPosition(0, ui->GetRoot()->GetHeight() / 4);
+
+    renderpathText = ui->GetRoot()->CreateChild<Text>();
+    renderpathText->SetText("Forward");
+    renderpathText->SetFont(cache->GetResource<Font>("Fonts/Anonymous Pro.ttf"), 15);
+    renderpathText->SetAlignment(HA_LEFT, VA_TOP);
 }
 
 void AOITLightTest::SetupViewport()
@@ -237,7 +261,6 @@ void AOITLightTest::SetupViewport()
 
     // Set up a viewport to the Renderer subsystem so that the 3D scene can be seen
     SharedPtr<Viewport> viewport(new Viewport(context_, scene_, cameraNode_->GetComponent<Camera>()));
-    viewport->SetRenderPath(rc->GetResource<XMLFile>("RenderPaths/ForwardTest.xml"));
     renderer->SetViewport(0, viewport);
 }
 
@@ -328,6 +351,26 @@ void AOITLightTest::HandleUpdate(StringHash eventType, VariantMap& eventData)
     // Move the camera and animate the scene, scale movement with time step
     MoveCamera(timeStep);
     AnimateScene(timeStep);
+
+    Input* input = GetSubsystem<Input>();
+    if (input->GetKeyPress(KEY_F3))
+    {
+        useAOIT_ = !useAOIT_;
+        auto* renderer = GetSubsystem<Renderer>();
+        auto* rc = GetSubsystem<ResourceCache>();
+
+        Viewport* viewport = renderer->GetViewport(0);
+        if (useAOIT_)
+        {
+            renderpathText->SetText("ForwardAOIT");
+            viewport->SetRenderPath(rc->GetResource<XMLFile>("RenderPaths/ForwardAOIT.xml"));
+        }
+        else
+        {
+            renderpathText->SetText("Forward");
+            viewport->SetRenderPath(rc->GetResource<XMLFile>("RenderPaths/Forward.xml"));
+        }
+    }
 }
 
 void AOITLightTest::HandlePostRenderUpdate(StringHash eventType, VariantMap& eventData)

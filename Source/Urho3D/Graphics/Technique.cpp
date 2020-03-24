@@ -51,6 +51,7 @@ const char* blendModeNames[] =
     "subtract",
     "subtractalpha",
 	"alphargb",
+    "aoitresolve",
     nullptr
 };
 

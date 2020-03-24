@@ -121,7 +121,7 @@ void RenderTargetInfo::Load(const XMLElement& element)
         shaderBuffer_ = element.GetBool("shaderbuffer");
 
     if (element.HasAttribute("structsize"))
-        structSize = element.GetUInt("structsize");
+        structSize_ = element.GetUInt("structsize");
 }
 
 void RenderPathCommand::Load(const XMLElement& element)

@@ -83,7 +83,8 @@ static const DWORD d3dBlendEnable[] =
     TRUE,
     TRUE,
 	TRUE,
-	TRUE
+    TRUE,
+    TRUE
 };
 
 static const D3D11_BLEND d3dSrcBlend[] =
@@ -97,7 +98,8 @@ static const D3D11_BLEND d3dSrcBlend[] =
     D3D11_BLEND_INV_DEST_ALPHA,
     D3D11_BLEND_ONE,
     D3D11_BLEND_SRC_ALPHA,
-	D3D11_BLEND_SRC_ALPHA
+	D3D11_BLEND_SRC_ALPHA,
+    D3D11_BLEND_ONE
 };
 
 static const D3D11_BLEND d3dDestBlend[] =
@@ -111,7 +113,8 @@ static const D3D11_BLEND d3dDestBlend[] =
     D3D11_BLEND_DEST_ALPHA,
     D3D11_BLEND_ONE,
     D3D11_BLEND_ONE,
-	D3D11_BLEND_INV_SRC_ALPHA
+	D3D11_BLEND_INV_SRC_ALPHA,
+	D3D11_BLEND_SRC_ALPHA
 };
 
 static const D3D11_BLEND d3dSrcBlendAlpha[] =
@@ -125,7 +128,8 @@ static const D3D11_BLEND d3dSrcBlendAlpha[] =
 	D3D11_BLEND_INV_DEST_ALPHA,
 	D3D11_BLEND_ONE,
 	D3D11_BLEND_SRC_ALPHA,
-	D3D11_BLEND_ZERO
+	D3D11_BLEND_ZERO,
+	D3D11_BLEND_ONE
 };
 
 static const D3D11_BLEND d3dDestBlendAlpha[] =
@@ -139,7 +143,8 @@ static const D3D11_BLEND d3dDestBlendAlpha[] =
 	D3D11_BLEND_DEST_ALPHA,
 	D3D11_BLEND_ONE,
 	D3D11_BLEND_ONE,
-	D3D11_BLEND_ONE
+	D3D11_BLEND_ONE,
+	D3D11_BLEND_SRC_ALPHA
 };
 
 static const D3D11_BLEND_OP d3dBlendOp[] =
@@ -153,7 +158,8 @@ static const D3D11_BLEND_OP d3dBlendOp[] =
     D3D11_BLEND_OP_ADD,
     D3D11_BLEND_OP_REV_SUBTRACT,
     D3D11_BLEND_OP_REV_SUBTRACT,
-	D3D11_BLEND_OP_ADD
+	D3D11_BLEND_OP_ADD,
+    D3D11_BLEND_OP_ADD
 };
 
 static const D3D11_STENCIL_OP d3dStencilOp[] =
@@ -1099,50 +1105,43 @@ void Graphics::SetShaders(ShaderVariation* vs, ShaderVariation* ps)
         if (buffersChanged[PS])
             impl_->deviceContext_->PSSetConstantBuffers(0, MAX_SHADER_PARAMETER_GROUPS, &impl_->constantBuffers_[PS][0]);        
 
-        // Inputs buffer
-        for (unsigned i = 0; i < impl_->shaderProgram_->resourceViewBuffers_.Size(); ++i)
-        {
-            const SlotBufferPair& pair = impl_->shaderProgram_->resourceViewBuffers_.At(i);
-            unsigned slot = pair.first_;
-            ShaderBuffer* buffer = pair.second_;
-            ID3D11ShaderResourceView* srv = (ID3D11ShaderResourceView*)buffer->GetShaderResourceView();
-            if (srv != impl_->shaderResourceViews_[slot])
-            {
-                impl_->shaderResourceViews_[slot] = srv;
-                UpdateEnds(slot, impl_->firstDirtyTexture_, impl_->lastDirtyTexture_);
-                impl_->texturesDirty_ = true;
-            }
-        }
-
         // Output buffers
-        for (unsigned i = 0; i < impl_->shaderProgram_->accessViewBuffers_.Size(); ++i)
+        for (auto & it : impl_->shaderProgram_->accessViewBuffers_)
         {
-            const SlotBufferPair& pair = impl_->shaderProgram_->accessViewBuffers_.At(i);
-            unsigned slot = pair.first_;
-            ShaderBuffer* buffer = pair.second_;
-            ID3D11UnorderedAccessView* uav = (ID3D11UnorderedAccessView*)buffer->GetUnorderedAccessView();
+            SharedPtr<ShaderBuffer> buffer(it.buffer_.Lock());
+            if (buffer == nullptr)
+            {
+                it.buffer_ = GetShaderBuffer(it.nameHash_, it.slot_);
+                buffer = it.buffer_.Lock();
+            }
+            ID3D11UnorderedAccessView* uav = 0;
+            if (buffer != nullptr)
+                uav = (ID3D11UnorderedAccessView*)buffer->GetUnorderedAccessView();
             // Because UAV shares same slots with RTV, always dirty it when someone wants to bind
             //if (uav != impl_->unorderedAccessViews_[slot])
             {
-                impl_->unorderedAccessViews_[slot] = uav;
-                UpdateEnds(slot, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
+                impl_->unorderedAccessViews_[it.slot_] = uav;
+                UpdateEnds(it.slot_, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
             }
         }
 
         // Compute output textures
-        for (unsigned i = 0; i < impl_->shaderProgram_->accessViewTextures_.Size(); ++i)
+        for (auto &it : impl_->shaderProgram_->accessViewTextures_)
         {
-            const SlotTexturePair& pair = impl_->shaderProgram_->accessViewTextures_.At(i);
-            unsigned slot = pair.first_;
-            Texture* texture = pair.second_.Get();
+            SharedPtr<Texture> texture(it.texture_.Lock());
+            if (texture == nullptr)
+            {
+                it.texture_ = GetComputeTarget(it.nameHash_, it.slot_);
+                texture = it.texture_.Lock();
+            }
             ID3D11UnorderedAccessView* uav = 0;
-            if (texture)
+            if (texture != nullptr)
                 uav = (ID3D11UnorderedAccessView*)texture->GetUnorderedAccessView();
             // Because UAV shares same slots with RTV, always dirty it when someone wants to bind
             //if (uav != impl_->unorderedAccessViews_[slot])
             {
-                impl_->unorderedAccessViews_[slot] = uav;
-                UpdateEnds(slot, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
+                impl_->unorderedAccessViews_[it.slot_] = uav;
+                UpdateEnds(it.slot_, impl_->firstDirtyUav_, impl_->lastDirtyUav_);
             }
         }
     }

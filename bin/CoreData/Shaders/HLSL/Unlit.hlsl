@@ -2,6 +2,7 @@
 #include "Samplers.hlsl"
 #include "Transform.hlsl"
 #include "Fog.hlsl"
+#include "AOIT.hlsl"
 
 void VS(float4 iPos : POSITION,
     #ifndef NOUV
@@ -64,15 +65,20 @@ void PS(float2 iTexCoord : TEXCOORD0,
     #if defined(D3D11) && defined(CLIPPLANE)
         float iClip : SV_CLIPDISTANCE0,
     #endif
-    #ifdef PREPASS
-        out float4 oDepth : OUTCOLOR1,
+    #ifdef AOIT
+        float4 iPos : SV_POSITION
+    #else
+        #ifdef PREPASS
+            out float4 oDepth : OUTCOLOR1,
+        #endif
+        #ifdef DEFERRED
+            out float4 oAlbedo : OUTCOLOR1,
+            out float4 oNormal : OUTCOLOR2,
+            out float4 oDepth : OUTCOLOR3,
+        #endif
+        out float4 oColor : OUTCOLOR0
     #endif
-    #ifdef DEFERRED
-        out float4 oAlbedo : OUTCOLOR1,
-        out float4 oNormal : OUTCOLOR2,
-        out float4 oDepth : OUTCOLOR3,
-    #endif
-    out float4 oColor : OUTCOLOR0)
+    )
 {
     // Get material diffuse albedo
     #ifdef DIFFMAP
@@ -107,6 +113,11 @@ void PS(float2 iTexCoord : TEXCOORD0,
         oNormal = float4(0.5, 0.5, 0.5, 1.0);
         oDepth = iWorldPos.w;
     #else
+        #ifdef AOIT
+        WriteNewPixelToAOIT(iPos.xy, iWorldPos.w, 
+            float4(GetFog(diffColor.rgb, fogFactor), diffColor.a));
+        #else
         oColor = float4(GetFog(diffColor.rgb, fogFactor), diffColor.a);
+        #endif
     #endif
 }
