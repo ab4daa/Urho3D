@@ -2113,7 +2113,7 @@ void View::AllocateScreenBuffers()
         {
             const StringHash nameHash(rtInfo.name_);
             ShaderBuffer* rwbuffer =
-                renderer_->GetScreenBuffer(intWidth, intHeight, rtInfo.structSize, 
+                renderer_->GetScreenBuffer(intWidth, intHeight, rtInfo.structSize_, 
                     rtInfo.persistent_ ? StringHash(rtInfo.name_).Value() + (unsigned)(size_t)this : 0);
             shaderBuffers_[nameHash] = rwbuffer;
 

@@ -83,4 +83,7 @@ private:
 
     /// Flag for drawing debug geometry.
     bool drawDebug_;
+
+    bool useAOIT_{ false };
+    SharedPtr<Text> renderpathText;
 };

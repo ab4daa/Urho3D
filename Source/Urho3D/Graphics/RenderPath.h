@@ -99,7 +99,7 @@ struct URHO3D_API RenderTargetInfo
     /// Is this RT a shaderbuffer?
     bool shaderBuffer_{ false };
     /// struct size of RWStructuredBuffer
-    unsigned structSize{ 1 };
+    unsigned structSize_{ 1 };
 };
 
 /// Rendering path command.
