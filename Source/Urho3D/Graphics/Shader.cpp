@@ -43,6 +43,30 @@ void CommentOutFunction(String& code, const String& signature)
     if (startPos == String::NPOS)
         return;
 
+    // find HLSL attribute before function, ex: [earlydepthstencil]
+    bool rightBracket = false;
+    for (unsigned ii = startPos; ii > 0; --ii)
+    {
+        const unsigned idx = ii - 1;
+        if (rightBracket)
+        {
+            if (code[idx] == '[')
+            {
+                startPos = idx;
+                break;
+            }
+        }
+        else
+        {
+            if (code[idx] == ' ' || code[idx] == '\t' || code[idx] == '\n' || code[idx] == '\r')
+                continue;
+            else if (code[idx] == ']')
+                rightBracket = true;
+            else
+                break;
+        }
+    }
+
     code.Insert(startPos, "/*");
 
     for (unsigned i = startPos + 2 + signature.Length(); i < code.Length(); ++i)
