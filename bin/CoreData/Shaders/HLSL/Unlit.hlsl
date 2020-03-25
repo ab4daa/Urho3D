@@ -57,6 +57,7 @@ void VS(float4 iPos : POSITION,
     #endif
 }
 
+[earlydepthstencil]
 void PS(float2 iTexCoord : TEXCOORD0,
     float4 iWorldPos: TEXCOORD2,
     #ifdef VERTEXCOLOR
