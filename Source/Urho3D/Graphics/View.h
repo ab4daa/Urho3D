@@ -210,7 +210,7 @@ private:
     /// Update geometries and sort batches.
     void UpdateGeometries();
     /// Get pixel lit batches for a certain light and drawable.
-    void GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQueue* alphaQueue);
+    void GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQueue* alphaQueue, BatchQueue* litaoitQueue);
     /// Execute render commands.
     void ExecuteRenderPathCommands();
     /// Set rendertargets for current render command.
@@ -432,6 +432,10 @@ private:
     unsigned litBasePassIndex_{};
     /// Index of the litalpha pass.
     unsigned litAlphaPassIndex_{};
+    /// Index of the aoit pass.
+    unsigned aoitPassIndex_{};
+    /// Index of the litaoit pass.
+    unsigned litaoitPassIndex_{};
     /// Pointer to the light volume command if any.
     const RenderPathCommand* lightVolumeCommand_{};
     /// Pointer to the forwardlights command if any.
