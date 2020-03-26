@@ -236,6 +236,8 @@ unsigned Technique::lightPassIndex = 0;
 unsigned Technique::litBasePassIndex = 0;
 unsigned Technique::litAlphaPassIndex = 0;
 unsigned Technique::shadowPassIndex = 0;
+unsigned Technique::aoitPassIndex = 0;
+unsigned Technique::litaoitPassIndex = 0;
 
 HashMap<String, unsigned> Technique::passIndices;
 
@@ -540,6 +542,8 @@ unsigned Technique::GetPassIndex(const String& passName)
         litBasePassIndex = passIndices["litbase"] = 5;
         litAlphaPassIndex = passIndices["litalpha"] = 6;
         shadowPassIndex = passIndices["shadow"] = 7;
+        aoitPassIndex = passIndices["aoit"] = 8;
+        litaoitPassIndex = passIndices["litaoit"] = 9;
     }
 
     String nameLower = passName.ToLower();

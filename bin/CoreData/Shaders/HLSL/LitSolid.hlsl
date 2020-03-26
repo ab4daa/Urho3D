@@ -4,6 +4,7 @@
 #include "ScreenPos.hlsl"
 #include "Lighting.hlsl"
 #include "Fog.hlsl"
+#include "AOIT.hlsl"
 
 void VS(float4 iPos : POSITION,
     #if !defined(BILLBOARD) && !defined(TRAILFACECAM)
@@ -136,6 +137,7 @@ void VS(float4 iPos : POSITION,
     #endif
 }
 
+[earlydepthstencil]
 void PS(
     #ifndef NORMALMAP
         float2 iTexCoord : TEXCOORD0,
@@ -171,15 +173,20 @@ void PS(
     #if defined(D3D11) && defined(CLIPPLANE)
         float iClip : SV_CLIPDISTANCE0,
     #endif
-    #ifdef PREPASS
-        out float4 oDepth : OUTCOLOR1,
+    #if defined(AOIT) || defined(AOIT_LIGHT)
+        float4 iPos : SV_POSITION
+    #else
+        #ifdef PREPASS
+            out float4 oDepth : OUTCOLOR1,
+        #endif
+        #ifdef DEFERRED
+            out float4 oAlbedo : OUTCOLOR1,
+            out float4 oNormal : OUTCOLOR2,
+            out float4 oDepth : OUTCOLOR3,
+        #endif
+        out float4 oColor : OUTCOLOR0
     #endif
-    #ifdef DEFERRED
-        out float4 oAlbedo : OUTCOLOR1,
-        out float4 oNormal : OUTCOLOR2,
-        out float4 oDepth : OUTCOLOR3,
-    #endif
-    out float4 oColor : OUTCOLOR0)
+    )
 {
     // Get material diffuse albedo
     #ifdef DIFFMAP
@@ -249,9 +256,25 @@ void PS(
         #ifdef AMBIENT
             finalColor += cAmbientColor.rgb * diffColor.rgb;
             finalColor += cMatEmissiveColor;
+            #if defined(AOIT)
+            WriteNewPixelToAOIT(iPos.xy, iWorldPos.w, 
+                float4(GetFog(finalColor, fogFactor), diffColor.a));
+            #elif defined(AOIT_LIGHT)
+            WriteLightPixelToAOIT(iPos.xy, iWorldPos.w, 
+                float4(GetFog(finalColor, fogFactor), diffColor.a));
+            #else
             oColor = float4(GetFog(finalColor, fogFactor), diffColor.a);
+            #endif
         #else
+            #if defined(AOIT)
+            WriteNewPixelToAOIT(iPos.xy, iWorldPos.w, 
+                float4(GetLitFog(finalColor, fogFactor), diffColor.a));
+            #elif defined(AOIT_LIGHT)
+            WriteLightPixelToAOIT(iPos.xy, iWorldPos.w, 
+                float4(GetLitFog(finalColor, fogFactor), diffColor.a));
+            #else
             oColor = float4(GetLitFog(finalColor, fogFactor), diffColor.a);
+            #endif
         #endif
     #elif defined(PREPASS)
         // Fill light pre-pass G-Buffer
@@ -314,6 +337,14 @@ void PS(
             finalColor += cMatEmissiveColor;
         #endif
 
+        #if defined(AOIT)
+        WriteNewPixelToAOIT(iPos.xy, iWorldPos.w, 
+            float4(GetFog(finalColor, fogFactor), diffColor.a));
+        #elif defined(AOIT_LIGHT)
+        WriteLightPixelToAOIT(iPos.xy, iWorldPos.w, 
+            float4(GetFog(finalColor, fogFactor), diffColor.a));
+        #else
         oColor = float4(GetFog(finalColor, fogFactor), diffColor.a);
+        #endif
     #endif
 }

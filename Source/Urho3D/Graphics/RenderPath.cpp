@@ -47,6 +47,7 @@ static const char* commandTypeNames[] =
     "lightvolumes",
     "renderui",
     "sendevent",
+    "aoitlight",
     nullptr
 };
 
@@ -157,6 +158,7 @@ void RenderPathCommand::Load(const XMLElement& element)
         break;
 
     case CMD_SCENEPASS:
+    case CMD_AOITLIGHT:
         pass_ = element.GetAttribute("pass");
         sortMode_ =
             (RenderCommandSortMode)GetStringListIndex(element.GetAttributeLower("sort").CString(), sortModeNames, SORT_FRONTTOBACK);

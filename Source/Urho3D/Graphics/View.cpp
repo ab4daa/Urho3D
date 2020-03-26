@@ -363,6 +363,8 @@ bool View::Define(RenderSurface* renderTarget, Viewport* viewport)
     lightPassIndex_ = Technique::GetPassIndex("light");
     litBasePassIndex_ = Technique::GetPassIndex("litbase");
     litAlphaPassIndex_ = Technique::GetPassIndex("litalpha");
+    aoitPassIndex_ = Technique::GetPassIndex("aoit");
+    litaoitPassIndex_ = Technique::GetPassIndex("litaoit");
 
     deferred_ = false;
     deferredAmbient_ = false;
@@ -428,6 +430,11 @@ bool View::Define(RenderSurface* renderTarget, Viewport* viewport)
                 {
                     alphaPassIndex_ = command.passIndex_;
                     litAlphaPassIndex_ = Technique::GetPassIndex("lit" + command.pass_);
+                }
+                else if (command.metadata_ == "aoit" && command.pass_ != "aoit")
+                {
+                    aoitPassIndex_ = command.passIndex_;
+                    litaoitPassIndex_ = Technique::GetPassIndex("lit" + command.pass_);
                 }
             }
 
@@ -996,6 +1003,7 @@ void View::ProcessLights()
 void View::GetLightBatches()
 {
     BatchQueue* alphaQueue = batchQueues_.Contains(alphaPassIndex_) ? &batchQueues_[alphaPassIndex_] : nullptr;
+    BatchQueue* litaoitQueue = batchQueues_.Contains(litaoitPassIndex_) ? &batchQueues_[litaoitPassIndex_] : nullptr;
 
     // Build light queues and lit batches
     {
@@ -1121,7 +1129,7 @@ void View::GetLightBatches()
 
                     // If drawable limits maximum lights, only record the light, and check maximum count / build batches later
                     if (!drawable->GetMaxLights())
-                        GetLitBatches(drawable, lightQueue, alphaQueue);
+                        GetLitBatches(drawable, lightQueue, alphaQueue, litaoitQueue);
                     else
                         maxLightsDrawables_.Insert(drawable);
                 }
@@ -1176,7 +1184,7 @@ void View::GetLightBatches()
                 // Find the correct light queue again
                 LightBatchQueue* queue = light->GetLightQueue();
                 if (queue)
-                    GetLitBatches(drawable, *queue, alphaQueue);
+                    GetLitBatches(drawable, *queue, alphaQueue, litaoitQueue);
             }
         }
     }
@@ -1369,7 +1377,7 @@ void View::UpdateGeometries()
     geometriesUpdated_ = true;
 }
 
-void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQueue* alphaQueue)
+void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQueue* alphaQueue, BatchQueue* litaoitQueue)
 {
     Light* light = lightQueue.light_;
     Zone* zone = GetZone(drawable);
@@ -1392,7 +1400,8 @@ void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQ
             continue;
 
         Batch destBatch(srcBatch);
-        bool isLitAlpha = false;
+        Pass* LitAlphaPass = nullptr;
+        Pass* LitAOITPass = nullptr;
 
         // Check for lit base pass. Because it uses the replace blend mode, it must be ensured to be the first light
         // Also vertex lighting or ambient gradient require the non-lit base pass, so skip in those cases
@@ -1410,33 +1419,42 @@ void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQ
         else
             destBatch.pass_ = tech->GetSupportedPass(lightPassIndex_);
 
-        // If no lit pass, check for lit alpha
+        // If no lit pass, check for lit alpha and lit aoit
         if (!destBatch.pass_)
         {
-            destBatch.pass_ = tech->GetSupportedPass(litAlphaPassIndex_);
-            isLitAlpha = true;
+            LitAlphaPass = tech->GetSupportedPass(litAlphaPassIndex_);
+            LitAOITPass = tech->GetSupportedPass(litaoitPassIndex_);
         }
-
-        // Skip if material does not receive light at all
-        if (!destBatch.pass_)
-            continue;
 
         destBatch.lightQueue_ = &lightQueue;
         destBatch.zone_ = zone;
 
-        if (!isLitAlpha)
+        if (destBatch.pass_)
         {
             if (destBatch.isBase_)
                 AddBatchToQueue(lightQueue.litBaseBatches_, destBatch, tech);
             else
                 AddBatchToQueue(lightQueue.litBatches_, destBatch, tech);
         }
-        else if (alphaQueue)
+        else
         {
             // Transparent batches can not be instanced, and shadows on transparencies can only be rendered if shadow maps are
             // not reused
-            AddBatchToQueue(*alphaQueue, destBatch, tech, false, !renderer_->GetReuseShadowMaps());
-        }
+            if (LitAOITPass != nullptr && litaoitQueue != nullptr)
+            {
+                Batch litaoitBatch(srcBatch);
+                litaoitBatch.pass_ = LitAOITPass;
+                litaoitBatch.lightQueue_ = &lightQueue;
+                litaoitBatch.zone_ = zone;
+                AddBatchToQueue(*litaoitQueue, litaoitBatch, tech, true, !renderer_->GetReuseShadowMaps());
+            }
+
+            if (LitAlphaPass != nullptr && alphaQueue != nullptr)
+            {
+                destBatch.pass_ = LitAlphaPass;
+                AddBatchToQueue(*alphaQueue, destBatch, tech, false, !renderer_->GetReuseShadowMaps());
+            }
+        }        
     }
 }
 
@@ -1710,6 +1728,33 @@ void View::ExecuteRenderPathCommands()
                     renderer_->SendEvent(E_RENDERPATHEVENT, eventData);
                 }
                 break;
+
+            case CMD_AOITLIGHT:
+            {
+                BatchQueue& queue = actualView->batchQueues_[actualView->litaoitPassIndex_];
+                if (!queue.IsEmpty())
+                {
+                    URHO3D_PROFILE(RenderAOITLightPass);
+
+                    SetRenderTargets(command);
+                    bool allowDepthWrite = SetTextures(command);
+                    graphics_->SetClipPlane(camera_->GetUseClipping(), camera_->GetClipPlane(), camera_->GetView(),
+                        camera_->GetGPUProjection());
+
+                    if (command.shaderParameters_.Size())
+                    {
+                        // If pass defines shader parameters, reset parameter sources now to ensure they all will be set
+                        // (will be set after camera shader parameters)
+                        graphics_->ClearParameterSources();
+                        passCommand_ = &command;
+                    }
+
+                    queue.Draw(this, camera_, command.markToStencil_, false, allowDepthWrite);
+
+                    passCommand_ = nullptr;
+                }
+            }
+            break;
 
             default:
                 break;

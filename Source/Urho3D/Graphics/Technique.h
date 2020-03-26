@@ -272,6 +272,10 @@ public:
     static unsigned litAlphaPassIndex;
     /// Index for shadow pass. Initialized once GetPassIndex() has been called for the first time.
     static unsigned shadowPassIndex;
+    /// Index for lit base pass. Initialized once GetPassIndex() has been called for the first time.
+    static unsigned aoitPassIndex;
+    /// Index for lit alpha pass. Initialized once GetPassIndex() has been called for the first time.
+    static unsigned litaoitPassIndex;
 
 private:
     /// Require desktop GPU flag.
