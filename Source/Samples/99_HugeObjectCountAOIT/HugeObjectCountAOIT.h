@@ -32,18 +32,20 @@ class Scene;
 
 }
 
-/// Billboard example.
+/// Huge object count example.
 /// This sample demonstrates:
-///     - Populating a 3D scene with billboard sets and several shadow casting spotlights
-///     - Parenting scene nodes to allow more intuitive creation of groups of objects
-///     - Examining rendering performance with a somewhat large object and light count
-class AOITLightTest : public Sample
+///     - Creating a scene with 250 x 250 simple objects
+///     - Competing with http://yosoygames.com.ar/wp/2013/07/ogre-2-0-is-up-to-3x-faster/ :)
+///     - Allowing examination of performance hotspots in the rendering code
+///     - Using the profiler to measure the time taken to animate the scene
+///     - Optionally speeding up rendering by grouping objects with the StaticModelGroup component
+class HugeObjectCountAOIT : public Sample
 {
-    URHO3D_OBJECT(AOITLightTest, Sample);
+    URHO3D_OBJECT(HugeObjectCountAOIT, Sample);
 
 public:
     /// Construct.
-    explicit AOITLightTest(Context* context);
+    explicit HugeObjectCountAOIT(Context* context);
 
     /// Setup after engine initialization and before running the main loop.
     void Start() override;
@@ -52,8 +54,16 @@ protected:
     /// Return XML patch instructions for screen joystick layout for a specific sample app, if any.
     String GetScreenJoystickPatchString() const override { return
         "<patch>"
+        "    <remove sel=\"/element/element[./attribute[@name='Name' and @value='Button0']]/attribute[@name='Is Visible']\" />"
+        "    <replace sel=\"/element/element[./attribute[@name='Name' and @value='Button0']]/element[./attribute[@name='Name' and @value='Label']]/attribute[@name='Text']/@value\">Group</replace>"
+        "    <add sel=\"/element/element[./attribute[@name='Name' and @value='Button0']]\">"
+        "        <element type=\"Text\">"
+        "            <attribute name=\"Name\" value=\"KeyBinding\" />"
+        "            <attribute name=\"Text\" value=\"G\" />"
+        "        </element>"
+        "    </add>"
         "    <remove sel=\"/element/element[./attribute[@name='Name' and @value='Button1']]/attribute[@name='Is Visible']\" />"
-        "    <replace sel=\"/element/element[./attribute[@name='Name' and @value='Button1']]/element[./attribute[@name='Name' and @value='Label']]/attribute[@name='Text']/@value\">Debug</replace>"
+        "    <replace sel=\"/element/element[./attribute[@name='Name' and @value='Button1']]/element[./attribute[@name='Name' and @value='Label']]/attribute[@name='Text']/@value\">Animation</replace>"
         "    <add sel=\"/element/element[./attribute[@name='Name' and @value='Button1']]\">"
         "        <element type=\"Text\">"
         "            <attribute name=\"Name\" value=\"KeyBinding\" />"
@@ -70,21 +80,22 @@ private:
     void CreateInstructions();
     /// Set up a viewport for displaying the scene.
     void SetupViewport();
-    /// Subscribe to application-wide logic update and post-render update events.
+    /// Subscribe to application-wide logic update events.
     void SubscribeToEvents();
-    /// Read input and moves the camera.
+    /// Read input and move the camera.
     void MoveCamera(float timeStep);
     /// Animate the scene.
-    void AnimateScene(float timeStep);
+    void AnimateObjects(float timeStep);
     /// Handle the logic update event.
     void HandleUpdate(StringHash eventType, VariantMap& eventData);
-    /// Handle the post-render update event.
-    void HandlePostRenderUpdate(StringHash eventType, VariantMap& eventData);
 
-    /// Flag for drawing debug geometry.
-    bool drawDebug_;
+    /// Box scene nodes.
+    Vector<SharedPtr<Node> > boxNodes_;
+    /// Animation flag.
+    bool animate_;
+    /// Group optimization flag.
+    bool useGroups_;
 
     bool useAOIT_{ false };
     SharedPtr<Text> renderpathText;
-    bool togglePause_{ false };
 };

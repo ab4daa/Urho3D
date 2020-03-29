@@ -247,7 +247,8 @@ void AOITLightTest::CreateInstructions()
     instructionText->SetText(
         "Use WASD keys and mouse/touch to move\n"
         "Space to toggle debug geometry\n"
-        "F3 to toggle AOIT"
+        "F3 to toggle AOIT\n"
+        "F4 to toggle pause"
     );
     instructionText->SetFont(cache->GetResource<Font>("Fonts/Anonymous Pro.ttf"), 15);
     // The text has multiple rows. Center them in relation to each other
@@ -360,7 +361,8 @@ void AOITLightTest::HandleUpdate(StringHash eventType, VariantMap& eventData)
 
     // Move the camera and animate the scene, scale movement with time step
     MoveCamera(timeStep);
-    AnimateScene(timeStep);
+    if(!togglePause_)
+        AnimateScene(timeStep);
 
     Input* input = GetSubsystem<Input>();
     if (input->GetKeyPress(KEY_F3))
@@ -381,6 +383,10 @@ void AOITLightTest::HandleUpdate(StringHash eventType, VariantMap& eventData)
             viewport->SetRenderPath(rc->GetResource<XMLFile>("RenderPaths/Forward.xml"));
         }
     }
+
+    if (input->GetKeyPress(KEY_F4))
+        togglePause_ = !togglePause_;
+        
 }
 
 void AOITLightTest::HandlePostRenderUpdate(StringHash eventType, VariantMap& eventData)
