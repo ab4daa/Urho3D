@@ -90,9 +90,10 @@ Pass::Pass(const String& name) :
 
     // Guess default lighting mode from pass name
     if (index_ == Technique::basePassIndex || index_ == Technique::alphaPassIndex || index_ == Technique::materialPassIndex ||
-        index_ == Technique::deferredPassIndex)
+        index_ == Technique::deferredPassIndex || index_ == Technique::aoitPassIndex)
         lightingMode_ = LIGHTING_PERVERTEX;
-    else if (index_ == Technique::lightPassIndex || index_ == Technique::litBasePassIndex || index_ == Technique::litAlphaPassIndex)
+    else if (index_ == Technique::lightPassIndex || index_ == Technique::litBasePassIndex || index_ == Technique::litAlphaPassIndex ||
+        index_ == Technique::litaoitPassIndex)
         lightingMode_ = LIGHTING_PERPIXEL;
 }
 

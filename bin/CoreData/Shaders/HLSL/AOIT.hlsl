@@ -213,8 +213,10 @@ RasterizerOrderedTexture2D<uint> gAOITSPClearMaskUAV        : register( u0 );
 #else
 RWTexture2D<uint> gAOITSPClearMaskUAV        : register(u0);
 #endif
-RWStructuredBuffer<AOITSPDepthData> _AOITSPDepthDataUAV     : register( u1 );
-RWStructuredBuffer<AOITSPColorData> _AOITSPColorDataUAV     : register( u2 );
+//RWStructuredBuffer<AOITSPDepthData> _AOITSPDepthDataUAV     : register( u1 );
+//RWStructuredBuffer<AOITSPColorData> _AOITSPColorDataUAV     : register( u2 );
+RasterizerOrderedStructuredBuffer<AOITSPDepthData> _AOITSPDepthDataUAV     : register( u1 );
+RasterizerOrderedStructuredBuffer<AOITSPColorData> _AOITSPColorDataUAV     : register( u2 );
 
 Texture2D<uint> gAOITSPClearMaskSRV                         : register( t0 );
 StructuredBuffer<AOITSPDepthData> _AOITSPDepthDataSRV       : register( t1 );
@@ -284,9 +286,8 @@ void AOITSPInsertFragment(in float  fragmentDepth,
 		}
 	} 
 
-	float EMPTY_NODE = asfloat(asuint(float(AOIT_EMPTY_NODE_DEPTH)) & (uint)AOIT_TRANS_MASK);
-
 #ifdef dohdr
+	const float EMPTY_NODE = asfloat(asuint(float(AOIT_EMPTY_NODE_DEPTH)) & (uint)AOIT_TRANS_MASK);
     // pack representation if we have too many nodes
  	[flatten]if (asfloat(asuint(float(depth[AOIT_NODE_COUNT])) & (uint)AOIT_TRANS_MASK) != EMPTY_NODE) {
 		float3 toBeRemovedCol = FromRGBE(UnpackRGBA(color[AOIT_NODE_COUNT])).rgb;
@@ -296,7 +297,7 @@ void AOITSPInsertFragment(in float  fragmentDepth,
 		trans[AOIT_NODE_COUNT - 1] = trans[AOIT_NODE_COUNT];
 	}
 #else
-	[flatten]if (asfloat(asuint(float(depth[AOIT_NODE_COUNT])) & (uint)AOIT_TRANS_MASK) != EMPTY_NODE) {
+	[flatten]if (depth[AOIT_NODE_COUNT] != AOIT_EMPTY_NODE_DEPTH) {
 		float3 toBeRemovedCol = UnpackRGB(color[AOIT_NODE_COUNT]);
 		float3 toBeAccumulCol = UnpackRGB(color[AOIT_NODE_COUNT - 1]);
 		color[AOIT_NODE_COUNT - 1] = PackRGB(toBeAccumulCol + toBeRemovedCol * trans[AOIT_NODE_COUNT - 1] *
@@ -320,7 +321,7 @@ void AOITSPInsertLightFragment(in float  fragmentDepth,
                           in float3 fragmentColor,
                           inout ATSPNode nodeArray[AOIT_NODE_COUNT])
 {	
-    int i, j;
+    int i;
 
     float  depth[AOIT_NODE_COUNT];	
     float  trans[AOIT_NODE_COUNT];	 
@@ -337,25 +338,27 @@ void AOITSPInsertLightFragment(in float  fragmentDepth,
 	
     // Find insertion index 
     int index = 0;
-    float prevTrans = 255;
-    [unroll] for (i = 0; i < AOIT_NODE_COUNT; ++i) {
-        if (fragmentDepth > depth[i]) {
+    [unroll] for (i = 0; i < AOIT_NODE_COUNT - 1; ++i) {
+		if (fragmentDepth > depth[i]) {
             index++;
-            prevTrans = trans[i];
-        }
+		}
     }
 
 	// Insert new fragment
-	const float newFragTrans = fragmentTrans * prevTrans;
 #ifdef dohdr
-	const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1)));
-#else
-	const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans));
-#endif
-	[flatten]if(index < AOIT_NODE_COUNT)
+	const float EMPTY_NODE = asfloat(asuint(float(AOIT_EMPTY_NODE_DEPTH)) & (uint)AOIT_TRANS_MASK);	
+	[flatten]if(index < AOIT_NODE_COUNT - 1 && (asfloat(asuint(float(depth[index])) & (uint)AOIT_TRANS_MASK) != EMPTY_NODE))
 	{
-		color[index] += newFragColor;
+		const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1) + UnpackRGBA(color[index])));
+		color[index] = newFragColor;
 	}
+#else
+	[flatten]if(index < AOIT_NODE_COUNT - 1 && depth[index] != AOIT_EMPTY_NODE_DEPTH)
+	{
+		const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans) + UnpackRGB(color[index]));
+		color[index] = newFragColor;
+	}
+#endif	
 
     // Pack AOIT data
     [unroll] for (i = 0; i < AOIT_NODE_COUNT; ++i) {
@@ -643,6 +646,8 @@ void AOITStoreControlSurface(in uint2 pixelAddr, in AOITCtrlSurface surface)
 
 void WriteNewPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceColor)
 {	
+	if(surfaceColor.a <= 0.01)
+		return;
 	// From now on serialize all UAV accesses (with respect to other fragments shaded in flight which map to the same pixel)
 	ATSPNode nodeArray[AOIT_NODE_COUNT];    
 	uint2 pixelAddr = uint2(Position.xy);
@@ -692,10 +697,11 @@ void WriteNewPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceCol
 
 void WriteLightPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceColor)
 {	
+	if(surfaceColor.a <= 0.01)
+		return;
 	// From now on serialize all UAV accesses (with respect to other fragments shaded in flight which map to the same pixel)
 	ATSPNode nodeArray[AOIT_NODE_COUNT];    
 	uint2 pixelAddr = uint2(Position.xy);
-
 
 	// Load AOIT control surface
 	AOITCtrlSurface ctrlSurface;

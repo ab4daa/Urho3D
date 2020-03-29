@@ -50,6 +50,8 @@ AOITLightTest::AOITLightTest(Context* context) :
     Sample(context),
     drawDebug_(false)
 {
+    Time* time = GetSubsystem<Time>();
+    SetRandomSeed(time->GetSystemTime());
 }
 
 void AOITLightTest::Start()
@@ -113,7 +115,7 @@ void AOITLightTest::CreateScene()
             floorObject->SetMaterial(cache->GetResource<Material>("Materials/Stone.xml"));
         }
     }
-#if 0
+
     // Create groups of mushrooms, which act as shadow casters
     const unsigned NUM_MUSHROOMGROUPS = 25;
     const unsigned NUM_MUSHROOMS = 25;
@@ -132,8 +134,16 @@ void AOITLightTest::CreateScene()
             mushroomNode->SetScale(1.0f + Random() * 4.0f);
             auto* mushroomObject = mushroomNode->CreateComponent<StaticModel>();
             mushroomObject->SetModel(cache->GetResource<Model>("Models/Mushroom.mdl"));
-            mushroomObject->SetMaterial(cache->GetResource<Material>("Materials/Mushroom.xml"));
-            mushroomObject->SetCastShadows(true);
+            //if(Random() > 0.5f)
+            if(false)
+                mushroomObject->SetMaterial(cache->GetResource<Material>("Materials/Mushroom.xml"));
+            else
+            {
+                SharedPtr<Material> mat(cache->GetResource<Material>("Materials/PureColorTransparent.xml")->Clone());
+                mat->SetShaderParameter("MatDiffColor", Color(Random(), Random(), Random(), Random()));
+                mushroomObject->SetMaterial(mat);
+            }
+            //mushroomObject->SetCastShadows(true);
         }
     }
 
@@ -148,7 +158,7 @@ void AOITLightTest::CreateScene()
 
         auto* billboardObject = smokeNode->CreateComponent<BillboardSet>();
         billboardObject->SetNumBillboards(NUM_BILLBOARDS);
-        billboardObject->SetMaterial(cache->GetResource<Material>("Materials/LitSmoke.xml"));
+        billboardObject->SetMaterial(cache->GetResource<Material>("Materials/LitSmokeTransparent.xml"));
         billboardObject->SetSorted(true);
 
         for (unsigned j = 0; j < NUM_BILLBOARDS; ++j)
@@ -199,7 +209,7 @@ void AOITLightTest::CreateScene()
         // for better shadow depth resolution
         light->SetShadowNearFarRatio(0.01f);
     }
-#endif
+
     const Color planeColors[] = {
         Color(1.0f, 0.0f, 0.0f, 0.75f),
         Color(1.0f, 1.0f, 0.0f, 0.75f),

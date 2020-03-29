@@ -4,6 +4,7 @@
 #include "Lighting.hlsl"
 #include "ScreenPos.hlsl"
 #include "Fog.hlsl"
+#include "AOIT.hlsl"
 
 #if defined(COMPILEPS) && defined(SOFTPARTICLES)
 #ifndef D3D11
@@ -142,7 +143,12 @@ void PS(float2 iTexCoord : TEXCOORD0,
     #if defined(D3D11) && defined(CLIPPLANE)
         float iClip : SV_CLIPDISTANCE0,
     #endif
-    out float4 oColor : OUTCOLOR0)
+    #if defined(AOIT) || defined(AOIT_LIGHT)
+        float4 iPos : SV_POSITION
+    #else
+        out float4 oColor : OUTCOLOR0
+    #endif
+    )
 {
     // Get material diffuse albedo
     #ifdef DIFFMAP
@@ -212,11 +218,26 @@ void PS(float2 iTexCoord : TEXCOORD0,
         #endif
 
         finalColor = diff * lightColor * diffColor.rgb;
+        #if defined(AOIT)
+        WriteNewPixelToAOIT(iPos.xy, iWorldPos.w, 
+            float4(GetLitFog(finalColor, fogFactor), diffColor.a));
+        #elif defined(AOIT_LIGHT)
+        WriteLightPixelToAOIT(iPos.xy, iWorldPos.w, 
+            float4(GetLitFog(finalColor, fogFactor), diffColor.a));
+        #else
         oColor = float4(GetLitFog(finalColor, fogFactor), diffColor.a);
+        #endif
     #else
         // Ambient & per-vertex lighting
         float3 finalColor = iVertexLight * diffColor.rgb;
-
+        #if defined(AOIT)
+        WriteNewPixelToAOIT(iPos.xy, iWorldPos.w, 
+            float4(GetLitFog(finalColor, fogFactor), diffColor.a));
+        #elif defined(AOIT_LIGHT)
+        WriteLightPixelToAOIT(iPos.xy, iWorldPos.w, 
+            float4(GetLitFog(finalColor, fogFactor), diffColor.a));
+        #else
         oColor = float4(GetFog(finalColor, fogFactor), diffColor.a);
+        #endif
     #endif
 }
