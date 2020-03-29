@@ -162,8 +162,7 @@ float4 UnpackRGBA(COLOR packedInput)
 struct AOITCtrlSurface
 {
 	bool  clear;
-	bool  opaque;
-	float depth;
+	uint  cnt;
 };
 
 struct AOITSPData
@@ -319,6 +318,7 @@ void AOITSPInsertFragment(in float  fragmentDepth,
 void AOITSPInsertLightFragment(in float  fragmentDepth,
                           in float  fragmentTrans,
                           in float3 fragmentColor,
+						  in uint cnt,
                           inout ATSPNode nodeArray[AOIT_NODE_COUNT])
 {	
     int i;
@@ -352,10 +352,20 @@ void AOITSPInsertLightFragment(in float  fragmentDepth,
 		const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1) + UnpackRGBA(color[index])));
 		color[index] = newFragColor;
 	}
+	else if(index == AOIT_NODE_COUNT - 1 && (asfloat(asuint(float(depth[index])) & (uint)AOIT_TRANS_MASK) != EMPTY_NODE))
+	{
+		const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1) / float(cnt - (AOIT_NODE_COUNT - 1)) + UnpackRGBA(color[index])));
+		color[index] = newFragColor;
+	}
 #else
 	[flatten]if(index < AOIT_NODE_COUNT - 1 && depth[index] != AOIT_EMPTY_NODE_DEPTH)
 	{
 		const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans) + UnpackRGB(color[index]));
+		color[index] = newFragColor;
+	}
+	else if(index == AOIT_NODE_COUNT - 1 && depth[index] != AOIT_EMPTY_NODE_DEPTH)
+	{
+		const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans) / float(cnt - (AOIT_NODE_COUNT - 1)) + UnpackRGB(color[index]));
 		color[index] = newFragColor;
 	}
 #endif	
@@ -619,8 +629,7 @@ void AOITSPStoreDataUAV(in uint2 pixelAddr, ATSPNode nodeArray[AOIT_NODE_COUNT])
 void AOITLoadControlSurface(in uint data, inout AOITCtrlSurface surface)
 {
 	surface.clear	= data & 0x1 ? true : false;
-	surface.opaque  = data & 0x2 ? true : false;
-	surface.depth   = asfloat((data & 0xFFFFFFFCUL) | 0x3UL);
+	surface.cnt = data >> 1;
 }
 
 void AOITLoadControlSurfaceUAV(in uint2 pixelAddr, inout AOITCtrlSurface surface)
@@ -637,10 +646,8 @@ void AOITLoadControlSurfaceSRV(in uint2 pixelAddr, inout AOITCtrlSurface surface
 
 void AOITStoreControlSurface(in uint2 pixelAddr, in AOITCtrlSurface surface)
 {
-	uint data;
-	data  = asuint(surface.depth) & 0xFFFFFFFCUL;
-	data |= surface.opaque ? 0x2 : 0x0;
-	data |= surface.clear  ? 0x1 : 0x0;	 
+	uint data = surface.clear  ? 0x1 : 0x0;	 
+	data |= surface.cnt << 1;
 	gAOITSPClearMaskUAV[pixelAddr] = data;
 }
 
@@ -678,7 +685,9 @@ void WriteNewPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceCol
 		// ctrlSurface.depth  = 0; // surfaceDepth;
 		// AOITStoreControlSurface(pixelAddr, ctrlSurface);
 
-        gAOITSPClearMaskUAV[pixelAddr] = 0;
+        //gAOITSPClearMaskUAV[pixelAddr] = 0;
+		ctrlSurface.clear = false;
+		ctrlSurface.cnt = 1;
 	} 
 	else 
 	{ 
@@ -692,7 +701,10 @@ void WriteNewPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceCol
 							 nodeArray);
 		// Store AOIT data
 		AOITSPStoreDataUAV(pixelAddr, nodeArray);
+		
+		ctrlSurface.cnt += 1;
 	}
+	AOITStoreControlSurface(pixelAddr, ctrlSurface);
 }
 
 void WriteLightPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceColor)
@@ -717,6 +729,7 @@ void WriteLightPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceC
 		AOITSPInsertLightFragment(surfaceDepth,		
 							 1.0f - surfaceColor.w,  // transmittance = 1 - alpha
 							 surfaceColor.xyz,
+							 ctrlSurface.cnt,
 							 nodeArray);
 		// Store AOIT data
 		AOITSPStoreDataUAV(pixelAddr, nodeArray);
