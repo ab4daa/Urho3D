@@ -134,16 +134,31 @@ void AOITLightTest::CreateScene()
             mushroomNode->SetScale(1.0f + Random() * 4.0f);
             auto* mushroomObject = mushroomNode->CreateComponent<StaticModel>();
             mushroomObject->SetModel(cache->GetResource<Model>("Models/Mushroom.mdl"));
-            //if(Random() > 0.5f)
-            if(false)
+            int r = Rand() % 3;
+            switch (r)
+            {
+            case 0:
                 mushroomObject->SetMaterial(cache->GetResource<Material>("Materials/Mushroom.xml"));
-            else
+                break;
+
+            case 1:
             {
                 SharedPtr<Material> mat(cache->GetResource<Material>("Materials/PureColorTransparent.xml")->Clone());
                 mat->SetShaderParameter("MatDiffColor", Color(Random(), Random(), Random(), Random()));
                 mushroomObject->SetMaterial(mat);
+                break;
             }
-            //mushroomObject->SetCastShadows(true);
+
+            default:
+            {
+                SharedPtr<Material> mat(cache->GetResource<Material>("Materials/MushroomAOIT.xml")->Clone());
+                mat->SetShaderParameter("MatDiffColor", Color(1.0f, 1.0f, 1.0f, Random()));
+                mushroomObject->SetMaterial(mat);
+                break;
+            }
+            }
+           
+            mushroomObject->SetCastShadows(true);
         }
     }
 
