@@ -1308,6 +1308,15 @@ void View::UpdateGeometries()
                 item->start_ = &batchQueues_[command.passIndex_];
                 queue->AddWorkItem(item);
             }
+            else if (command.type_ == CMD_AOITLIGHT)
+            {
+                SharedPtr<WorkItem> item = queue->GetFreeItem();
+                item->priority_ = M_MAX_UNSIGNED;
+                item->workFunction_ =
+                    command.sortMode_ == SORT_FRONTTOBACK ? SortBatchQueueFrontToBackWork : SortBatchQueueBackToFrontWork;
+                item->start_ = &batchQueues_[litaoitPassIndex_];
+                queue->AddWorkItem(item);
+            }
         }
 
         for (Vector<LightBatchQueue>::Iterator i = lightQueues_.Begin(); i != lightQueues_.End(); ++i)
