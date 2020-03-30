@@ -46,8 +46,7 @@ enum RenderCommandType
     CMD_FORWARDLIGHTS,
     CMD_LIGHTVOLUMES,
     CMD_RENDERUI,
-    CMD_SENDEVENT,
-    CMD_AOITLIGHT
+    CMD_SENDEVENT
 };
 
 /// Rendering path sorting modes.

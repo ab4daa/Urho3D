@@ -1003,7 +1003,7 @@ void View::ProcessLights()
 void View::GetLightBatches()
 {
     BatchQueue* alphaQueue = batchQueues_.Contains(alphaPassIndex_) ? &batchQueues_[alphaPassIndex_] : nullptr;
-    BatchQueue* litaoitQueue = batchQueues_.Contains(litaoitPassIndex_) ? &batchQueues_[litaoitPassIndex_] : nullptr;
+    BatchQueue* aoitQueue = batchQueues_.Contains(aoitPassIndex_) ? &batchQueues_[aoitPassIndex_] : nullptr;
 
     // Build light queues and lit batches
     {
@@ -1129,7 +1129,7 @@ void View::GetLightBatches()
 
                     // If drawable limits maximum lights, only record the light, and check maximum count / build batches later
                     if (!drawable->GetMaxLights())
-                        GetLitBatches(drawable, lightQueue, alphaQueue, litaoitQueue);
+                        GetLitBatches(drawable, lightQueue, alphaQueue, aoitQueue);
                     else
                         maxLightsDrawables_.Insert(drawable);
                 }
@@ -1184,7 +1184,7 @@ void View::GetLightBatches()
                 // Find the correct light queue again
                 LightBatchQueue* queue = light->GetLightQueue();
                 if (queue)
-                    GetLitBatches(drawable, *queue, alphaQueue, litaoitQueue);
+                    GetLitBatches(drawable, *queue, alphaQueue, aoitQueue);
             }
         }
     }
@@ -1307,16 +1307,7 @@ void View::UpdateGeometries()
                     command.sortMode_ == SORT_FRONTTOBACK ? SortBatchQueueFrontToBackWork : SortBatchQueueBackToFrontWork;
                 item->start_ = &batchQueues_[command.passIndex_];
                 queue->AddWorkItem(item);
-            }
-            else if (command.type_ == CMD_AOITLIGHT)
-            {
-                SharedPtr<WorkItem> item = queue->GetFreeItem();
-                item->priority_ = M_MAX_UNSIGNED;
-                item->workFunction_ =
-                    command.sortMode_ == SORT_FRONTTOBACK ? SortBatchQueueFrontToBackWork : SortBatchQueueBackToFrontWork;
-                item->start_ = &batchQueues_[litaoitPassIndex_];
-                queue->AddWorkItem(item);
-            }
+            }            
         }
 
         for (Vector<LightBatchQueue>::Iterator i = lightQueues_.Begin(); i != lightQueues_.End(); ++i)
@@ -1386,7 +1377,7 @@ void View::UpdateGeometries()
     geometriesUpdated_ = true;
 }
 
-void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQueue* alphaQueue, BatchQueue* litaoitQueue)
+void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQueue* alphaQueue, BatchQueue* aoitQueue)
 {
     Light* light = lightQueue.light_;
     Zone* zone = GetZone(drawable);
@@ -1449,13 +1440,13 @@ void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQ
         {
             // Transparent batches can not be instanced, and shadows on transparencies can only be rendered if shadow maps are
             // not reused
-            if (LitAOITPass != nullptr && litaoitQueue != nullptr)
+            if (LitAOITPass != nullptr && aoitQueue != nullptr)
             {
                 Batch litaoitBatch(srcBatch);
                 litaoitBatch.pass_ = LitAOITPass;
                 litaoitBatch.lightQueue_ = &lightQueue;
                 litaoitBatch.zone_ = zone;
-                AddBatchToQueue(*litaoitQueue, litaoitBatch, tech, true, !renderer_->GetReuseShadowMaps());
+                AddBatchToQueue(*aoitQueue, litaoitBatch, tech, true, !renderer_->GetReuseShadowMaps());
             }
 
             if (LitAlphaPass != nullptr && alphaQueue != nullptr)
@@ -1737,33 +1728,6 @@ void View::ExecuteRenderPathCommands()
                     renderer_->SendEvent(E_RENDERPATHEVENT, eventData);
                 }
                 break;
-
-            case CMD_AOITLIGHT:
-            {
-                BatchQueue& queue = actualView->batchQueues_[actualView->litaoitPassIndex_];
-                if (!queue.IsEmpty())
-                {
-                    URHO3D_PROFILE(RenderAOITLightPass);
-
-                    SetRenderTargets(command);
-                    bool allowDepthWrite = SetTextures(command);
-                    graphics_->SetClipPlane(camera_->GetUseClipping(), camera_->GetClipPlane(), camera_->GetView(),
-                        camera_->GetGPUProjection());
-
-                    if (command.shaderParameters_.Size())
-                    {
-                        // If pass defines shader parameters, reset parameter sources now to ensure they all will be set
-                        // (will be set after camera shader parameters)
-                        graphics_->ClearParameterSources();
-                        passCommand_ = &command;
-                    }
-
-                    queue.Draw(this, camera_, command.markToStencil_, false, allowDepthWrite);
-
-                    passCommand_ = nullptr;
-                }
-            }
-            break;
 
             default:
                 break;
