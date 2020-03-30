@@ -291,7 +291,7 @@ void AOITSPInsertFragment(in float  fragmentDepth,
 	[flatten]if(ctlSurface.trans_updated == false)
 	{
 		ctlSurface.trans_updated = true;
-		last_trans = trans[AOIT_NODE_COUNT - 1];
+		ctlSurface.last_trans = trans[AOIT_NODE_COUNT - 1];
 	}
 #endif
 
@@ -364,8 +364,8 @@ void AOITSPInsertLightFragment(in float  fragmentDepth,
 	}
 	else if(index >= AOIT_NODE_COUNT)
 	{
-		const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1) * last_trans * rcp(trans[AOIT_NODE_COUNT - 2]) + UnpackRGBA(color[index])));
-		color[index] = newFragColor;
+		const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1) * last_trans * rcp(trans[AOIT_NODE_COUNT - 2]) + UnpackRGBA(color[AOIT_NODE_COUNT - 1])));
+		color[AOIT_NODE_COUNT - 1] = newFragColor;
 	}
 #else
 	[flatten]if(index < AOIT_NODE_COUNT && depth[index] != AOIT_EMPTY_NODE_DEPTH)
@@ -375,8 +375,8 @@ void AOITSPInsertLightFragment(in float  fragmentDepth,
 	}
 	else if(index >= AOIT_NODE_COUNT)
 	{
-		const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans) * last_trans * rcp(trans[AOIT_NODE_COUNT - 2]) + UnpackRGB(color[index]));
-		color[index] = newFragColor;
+		const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans) * last_trans * rcp(trans[AOIT_NODE_COUNT - 2]) + UnpackRGB(color[AOIT_NODE_COUNT - 1]));
+		color[AOIT_NODE_COUNT - 1] = newFragColor;
 	}
 #endif	
 
