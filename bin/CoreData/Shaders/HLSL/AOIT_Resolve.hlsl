@@ -44,9 +44,9 @@ void PS(
 		float3 color = 0;       
 		[unroll]for(uint i = 0; i < AOIT_NODE_COUNT; i++) {
 			color += trans * nodeArray[i].color;
-			trans  = nodeArray[i].trans / 65535;
+			trans  = nodeArray[i].trans;
 		}
-		oColor = float4(color, nodeArray[AOIT_NODE_COUNT - 1].trans / 65535);
+		oColor = float4(color, nodeArray[AOIT_NODE_COUNT - 1].trans);
 	}
 
     // blend accumualted transparent color with opaque background color

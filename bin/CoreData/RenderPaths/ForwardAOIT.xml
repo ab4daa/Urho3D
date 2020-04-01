@@ -3,7 +3,7 @@
     <!-- default 4 nodes, struct size = 4x float -->
     <rendertarget name="AOITSPDepthData" sizedivisor="1 1" shaderbuffer="true" structsize="16" persistent="true" />
     <!-- default 4 nodes, struct size = 4x uint -->
-    <rendertarget name="AOITSPColorData" sizedivisor="1 1" shaderbuffer="true" structsize="32" persistent="true" />
+    <rendertarget name="AOITSPColorData" sizedivisor="1 1" shaderbuffer="true" structsize="64" persistent="true" />
     
     <command type="clear" color="fog" depth="1.0" stencil="0" />
     <command type="quad" vs="AOIT_Clear" ps="AOIT_Clear" output="AOITSPClearMask" />
