@@ -43,14 +43,10 @@ void PS(
 		float  trans = 1;
 		float3 color = 0;       
 		[unroll]for(uint i = 0; i < AOIT_NODE_COUNT; i++) {
-#ifdef dohdr
-			color += trans * FromRGBE(UnpackRGBA(nodeArray[i].color));
-#else
-			color += trans * UnpackRGB(nodeArray[i].color);
-#endif
-			trans  = nodeArray[i].trans / 255;
+			color += trans * nodeArray[i].color;
+			trans  = nodeArray[i].trans / 65535;
 		}
-		oColor = float4(color, nodeArray[AOIT_NODE_COUNT - 1].trans / 255);
+		oColor = float4(color, nodeArray[AOIT_NODE_COUNT - 1].trans / 65535);
 	}
 
     // blend accumualted transparent color with opaque background color

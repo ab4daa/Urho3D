@@ -1,3 +1,4 @@
+#line 20000
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Copyright 2017 Intel Corporation
 //
@@ -57,53 +58,21 @@ typedef uint COLOR;
 #define AOIT_MAX_UNNORM_TRANS   ((1 << AOIT_TRANS_BIT_COUNT) - 1)
 #define AOIT_TRANS_MASK         (0xFFFFFFFF - (uint)AOIT_MAX_UNNORM_TRANS)
 
-
-
-
-
-
-
-
-#ifdef dohdr
-
-// ToRGBE - takes a float RGB value and converts it to a float RGB value with a shared exponent
-float4 ToRGBE(float4 inColor)
+void UnpackRGBA16(in uint rg, in uint b_trans, out float3 color, out float trans)
 {
-	float base = max(inColor.r, max(inColor.g, inColor.b));
-	int e;
-	float m = frexp(base, e);
-	return float4(saturate(inColor.rgb / exp2(e)), e + 127);
+	uint3 p = uint3(rg >> 16UL,
+		rg & 0xFFFFUL,
+		b_trans >> 16UL);
+	color = ((float3)p) / 65535;
+	trans = float(b_trans & 0xFFFFUL);
 }
 
-// FromRGBE takes a float RGB value with a sahred exponent and converts it to a 
-//	float RGB value
-float4 FromRGBE(float4 inColor)
+void PackRGBA16(in float3 color, in float trans, out uint rg, out uint b_trans)
 {
-	return float4(inColor.rgb*exp2(inColor.a - 127), inColor.a);
+	uint3 u = (uint3)(saturate(color) * 65535 + 0.5);
+	rg = (u.x << 16UL) | (u.y & 0xFFFFUL);
+	b_trans = (u.z << 16UL) | (uint(trans) & 0xFFFFUL);
 }
-
-// UnpackRGBA takes a uint value and converts it to a float4
-float4 UnpackRGBA(COLOR packedInput)
-{
-	float4 unpackedOutput;
-	uint4 p = uint4((packedInput & 0xFFUL),
-		(packedInput >> 8UL) & 0xFFUL,
-		(packedInput >> 16UL) & 0xFFUL,
-		(packedInput >> 24UL));
-
-	unpackedOutput = ((float4)p) / float4(255, 255, 255, 1.0f);
-	return unpackedOutput;
-}
-
-// PackRGBA takes a float4 value and packs it into a UINT (8 bits / float)
-COLOR PackRGBA(float4 unpackedInput)
-{
-	uint4 u = (uint4)(unpackedInput * float4(255, 255, 255, 1.0f));
-	uint packedOutput = (u.w << 24UL) | (u.z << 16UL) | (u.y << 8UL) | u.x;
-	return packedOutput;
-}
-
-#else
 
 float UnpackUnnormAlpha(COLOR packedInput)
 {
@@ -149,7 +118,7 @@ float4 UnpackRGBA(COLOR packedInput)
 	unpackedOutput = ((float4)p) / 255;
 	return unpackedOutput;
 }
-#endif
+
 
 
 
@@ -174,19 +143,20 @@ struct AOITSPData
 
 struct AOITSPDepthData
 {
-	float4 depth[AOIT_RT_COUNT];
+	float depth[AOIT_NODE_COUNT];
 };
 
 struct AOITSPColorData
 {
-	uint4  color[AOIT_RT_COUNT];
+	uint rg[AOIT_NODE_COUNT];
+	uint b_trans[AOIT_NODE_COUNT];
 };
 
 struct ATSPNode
 {
     float  depth;
     float  trans;
-    uint   color;
+    float3 color;
 };
 
 //////////////////////////////////////////////
@@ -241,7 +211,7 @@ void AOITSPInsertFragment(in float  fragmentDepth,
 
     float  depth[AOIT_NODE_COUNT + 1];	
     float  trans[AOIT_NODE_COUNT + 1];	 
-    uint   color[AOIT_NODE_COUNT + 1];	 
+    float3   color[AOIT_NODE_COUNT + 1];	 
 
     ///////////////////////////////////////////////////
     // Unpack AOIT data
@@ -254,7 +224,7 @@ void AOITSPInsertFragment(in float  fragmentDepth,
 	
     // Find insertion index 
     int index = 0;
-    float prevTrans = 255;
+    float prevTrans = 65535;
     [unroll] for (i = 0; i < AOIT_NODE_COUNT; ++i) {
         if (fragmentDepth > depth[i]) {
             index++;
@@ -274,11 +244,7 @@ void AOITSPInsertFragment(in float  fragmentDepth,
     
 	// Insert new fragment
 	const float newFragTrans = fragmentTrans * prevTrans;
-#ifdef dohdr
-	const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1)));
-#else
-	const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans));
-#endif
+	const float3 newFragColor = fragmentColor * (1 - fragmentTrans);
 	[unroll]for (i = 0; i <= AOIT_NODE_COUNT; ++i) {
 		[flatten]if (index == i) {
 			depth[i] = fragmentDepth;
@@ -295,26 +261,13 @@ void AOITSPInsertFragment(in float  fragmentDepth,
 	}
 #endif
 
-#ifdef dohdr
-	const float EMPTY_NODE = asfloat(asuint(float(AOIT_EMPTY_NODE_DEPTH)) & (uint)AOIT_TRANS_MASK);
-    // pack representation if we have too many nodes
- 	[flatten]if (asfloat(asuint(float(depth[AOIT_NODE_COUNT])) & (uint)AOIT_TRANS_MASK) != EMPTY_NODE) {
-		float3 toBeRemovedCol = FromRGBE(UnpackRGBA(color[AOIT_NODE_COUNT])).rgb;
-		float3 toBeAccumulCol = FromRGBE(UnpackRGBA(color[AOIT_NODE_COUNT-1])).rgb;
-		color[AOIT_NODE_COUNT - 1] = PackRGBA(ToRGBE(float4(toBeAccumulCol + toBeRemovedCol * trans[AOIT_NODE_COUNT - 1] *
-			rcp(trans[AOIT_NODE_COUNT - 2]),1)));
-		trans[AOIT_NODE_COUNT - 1] = trans[AOIT_NODE_COUNT];
-	}
-#else
 	[flatten]if (depth[AOIT_NODE_COUNT] != AOIT_EMPTY_NODE_DEPTH) {
-		float3 toBeRemovedCol = UnpackRGB(color[AOIT_NODE_COUNT]);
-		float3 toBeAccumulCol = UnpackRGB(color[AOIT_NODE_COUNT - 1]);
-		color[AOIT_NODE_COUNT - 1] = PackRGB(toBeAccumulCol + toBeRemovedCol * trans[AOIT_NODE_COUNT - 1] *
-			rcp(trans[AOIT_NODE_COUNT - 2]));
+		float3 toBeRemovedCol = color[AOIT_NODE_COUNT];
+		float3 toBeAccumulCol = color[AOIT_NODE_COUNT - 1];
+		color[AOIT_NODE_COUNT - 1] = toBeAccumulCol + toBeRemovedCol * trans[AOIT_NODE_COUNT - 1] *
+			rcp(trans[AOIT_NODE_COUNT - 2]);
 		trans[AOIT_NODE_COUNT - 1] = trans[AOIT_NODE_COUNT];
-	}
-#endif
-	
+	}	
    
     // Pack AOIT data
     [unroll] for (i = 0; i < AOIT_NODE_COUNT; ++i) {
@@ -335,7 +288,7 @@ void AOITSPInsertLightFragment(in float  fragmentDepth,
 
     float  depth[AOIT_NODE_COUNT];	
     float  trans[AOIT_NODE_COUNT];	 
-    uint   color[AOIT_NODE_COUNT];	 
+    float3   color[AOIT_NODE_COUNT];	 
 
     ///////////////////////////////////////////////////
     // Unpack AOIT data
@@ -355,30 +308,16 @@ void AOITSPInsertLightFragment(in float  fragmentDepth,
     }
 
 	// Insert new fragment
-#ifdef dohdr
-	const float EMPTY_NODE = asfloat(asuint(float(AOIT_EMPTY_NODE_DEPTH)) & (uint)AOIT_TRANS_MASK);	
-	[flatten]if(index < AOIT_NODE_COUNT && (asfloat(asuint(float(depth[index])) & (uint)AOIT_TRANS_MASK) != EMPTY_NODE))
-	{
-		const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1) + UnpackRGBA(color[index])));
-		color[index] = newFragColor;
-	}
-	else if(index >= AOIT_NODE_COUNT)
-	{
-		const uint  newFragColor = PackRGBA(ToRGBE(float4(fragmentColor * (1 - fragmentTrans), 1) * last_trans * rcp(trans[AOIT_NODE_COUNT - 2]) + UnpackRGBA(color[AOIT_NODE_COUNT - 1])));
-		color[AOIT_NODE_COUNT - 1] = newFragColor;
-	}
-#else
 	[flatten]if(index < AOIT_NODE_COUNT && depth[index] != AOIT_EMPTY_NODE_DEPTH)
 	{
-		const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans) + UnpackRGB(color[index]));
+		const float3 newFragColor = fragmentColor * (1 - fragmentTrans) + color[index];
 		color[index] = newFragColor;
 	}
 	else if(index >= AOIT_NODE_COUNT)
 	{
-		const uint  newFragColor = PackRGB(fragmentColor * (1 - fragmentTrans) * last_trans * rcp(trans[AOIT_NODE_COUNT - 2]) + UnpackRGB(color[AOIT_NODE_COUNT - 1]));
+		const float3 newFragColor = fragmentColor * (1 - fragmentTrans) * last_trans * rcp(trans[AOIT_NODE_COUNT - 2]) + color[AOIT_NODE_COUNT - 1];
 		color[AOIT_NODE_COUNT - 1] = newFragColor;
 	}
-#endif	
 
     // Pack AOIT data
     [unroll] for (i = 0; i < AOIT_NODE_COUNT; ++i) {
@@ -422,206 +361,48 @@ uint AOITAddrGenSRV(uint2 addr2D)
 	return AOITAddrGen(addr2D, dim[0]);	
 }
 
-
-#ifdef dohdr
-void AOITSPClearData(inout AOITSPData data, float depth, float4 color)
+void AOITSPClearData(out ATSPNode nodeArray[AOIT_NODE_COUNT], float depth, float4 color)
 {
-	uint packedColor = PackRGBA(ToRGBE(float4(0, 0, 0,1)));
-
-#if AOIT_NODE_COUNT == 2
-	data.depth[0] = 0;
-	data.color[0][0] = asuint((asuint(depth) & (uint)AOIT_TRANS_MASK) | (uint(saturate(1.0f - color.w) * 255 + 0.5) & uint(AOIT_MAX_UNNORM_TRANS)));
-	data.color[0][1] = asuint((asuint(float(AOIT_EMPTY_NODE_DEPTH)) & (uint)AOIT_TRANS_MASK) | uint(saturate(1.0f - color.w) * 255 + 0.5));
-	data.color[0][2] = PackRGBA(ToRGBE(float4(color.www * color.xyz,1)));
-	data.color[0][3] = packedColor;
-#else
-	[unroll]for (uint i = 0; i < AOIT_RT_COUNT; i++) {
-		data.depth[i] = asfloat(((asuint(AOIT_EMPTY_NODE_DEPTH) & (uint)AOIT_TRANS_MASK)) | uint(saturate(1.0f - color.w) * 255 + 0.5));
-		data.color[i] = packedColor;
+	[unroll]for(uint i = 0; i < AOIT_NODE_COUNT; i++) {
+		nodeArray[i].depth = AOIT_EMPTY_NODE_DEPTH;
+		nodeArray[i].color = float3(0, 0, 0);
+		nodeArray[i].trans = saturate(1.0f - color.w) * 65535 + 0.5;
 	}
-	data.depth[0][0] = asfloat(((asuint(depth) & (uint)AOIT_TRANS_MASK)) | ((uint(saturate(1.0f - color.w) * 255 + 0.5)) & uint(AOIT_MAX_UNNORM_TRANS)));
-	data.color[0][0] = PackRGBA(ToRGBE(float4(color.www * color.xyz, 1)));
-#endif
+	nodeArray[0].depth = depth;
+	nodeArray[0].color = color.rgb * color.aaa;
 }
 
-#else
-void AOITSPClearData(inout AOITSPData data, float depth, float4 color)
-{
-	uint packedColor = PackRGBA(float4(0, 0, 0, 1.0f - color.w));
-
-#if AOIT_NODE_COUNT == 2
-	data.depth[0] = 0;
-	data.color[0][0] = asuint(depth);
-	data.color[0][1] = asuint((float)AOIT_EMPTY_NODE_DEPTH);
-	data.color[0][2] = PackRGBA(float4(color.www * color.xyz, 1.0f - color.w));
-	data.color[0][3] = packedColor;
-#else
-	[unroll]for(uint i = 0; i < AOIT_RT_COUNT; i++) {
-		data.depth[i] = AOIT_EMPTY_NODE_DEPTH;
-		data.color[i] = packedColor;
-	}	
-	data.depth[0][0] = depth;
-	data.color[0][0] = PackRGBA(float4(color.www * color.xyz, 1.0f - color.w));
-#endif
-}
-#endif
 /////////////////////////////////////////////////
 // Load/store functions for the AOIT data
 /////////////////////////////////////////////////
-#ifdef dohdr
 void AOITSPLoadDataSRV(in uint2 pixelAddr, out ATSPNode nodeArray[AOIT_NODE_COUNT])
 {
-	AOITSPData data;
-	uint addr  = AOITAddrGenSRV(pixelAddr);
-	data.color = _AOITSPColorDataSRV[addr];
-
-#if AOIT_NODE_COUNT == 2
-	[unroll]for(uint j = 0; j < 2; j++) {
-
-		ATSPNode node = { 0, float(data.color[0][j] & uint(AOIT_MAX_UNNORM_TRANS)),
-			data.color[0][2 + j] };
-        nodeArray[j] = node;
-	}
-#else
-	data.depth = _AOITSPDepthDataSRV[addr];
-	[unroll]for(uint i = 0; i < AOIT_RT_COUNT; i++) {
-		[unroll]for(uint j = 0; j < 4; j++) {
-            ATSPNode node = { 0, float(asuint(data.depth[i][j]) & uint(AOIT_MAX_UNNORM_TRANS)),
-							     data.color[i][j] };
-            nodeArray[4 * i + j] = node;
-		}
-	}
-#endif
-}
-#else
-void AOITSPLoadDataSRV(in uint2 pixelAddr, out ATSPNode nodeArray[AOIT_NODE_COUNT])
-{
-	AOITSPData data;
 	uint addr = AOITAddrGenSRV(pixelAddr);
-	data.color = _AOITSPColorDataSRV[addr];
-
-#if AOIT_NODE_COUNT == 2
-	[unroll]for (uint j = 0; j < 2; j++) {
-		ATSPNode node = { 0, UnpackUnnormAlpha(data.color[0][2 + j]),
-			data.color[0][2 + j] & 0xFFFFFFUL };
-		nodeArray[j] = node;
+	[unroll]for (uint i = 0; i < AOIT_NODE_COUNT; i++) {
+		nodeArray[i].depth = 0;
+		UnpackRGBA16(_AOITSPColorDataSRV[addr].rg[i], _AOITSPColorDataSRV[addr].b_trans[i], nodeArray[i].color, nodeArray[i].trans);
 	}
-#else
-	[unroll]for (uint i = 0; i < AOIT_RT_COUNT; i++) {
-		[unroll]for (uint j = 0; j < 4; j++) {
-			ATSPNode node = { 0, UnpackUnnormAlpha(data.color[i][j]),
-				data.color[i][j] & 0xFFFFFFUL };
-			nodeArray[4 * i + j] = node;
-		}
-	}
-#endif
 }
-#endif
 
 
-#ifdef dohdr
 void AOITSPLoadDataUAV(in uint2 pixelAddr, out ATSPNode nodeArray[AOIT_NODE_COUNT])
 {
-	AOITSPData data;	
-	uint addr  = AOITAddrGenUAV(pixelAddr);
-	data.color = _AOITSPColorDataUAV[addr];
-
-#if AOIT_NODE_COUNT == 2
-	[unroll]for(uint j = 0; j < 2; j++) {
-		ATSPNode node = { asfloat(data.color[0][j] & (uint)AOIT_TRANS_MASK), float(data.color[0][j] & uint(AOIT_MAX_UNNORM_TRANS)),
-			data.color[0][2 + j]  };
-        nodeArray[j] = node;
-	}
-#else
-	data.depth = _AOITSPDepthDataUAV[addr];
-	[unroll]for(uint i = 0; i < AOIT_RT_COUNT; i++) {
-		[unroll]for(uint j = 0; j < 4; j++) {
-            ATSPNode node = { asfloat(asuint(data.depth[i][j]) & uint(AOIT_TRANS_MASK)),
-								float(asuint(data.depth[i][j]) & uint(AOIT_MAX_UNNORM_TRANS)),
-							  data.color[i][j] };
-            nodeArray[4 * i + j] = node;
-		}
-	}	
-#endif
-}
-#else
-void AOITSPLoadDataUAV(in uint2 pixelAddr, out ATSPNode nodeArray[AOIT_NODE_COUNT])
-{
-	AOITSPData data;
 	uint addr = AOITAddrGenUAV(pixelAddr);
-	data.color = _AOITSPColorDataUAV[addr];
-
-#if AOIT_NODE_COUNT == 2
-	[unroll]for (uint j = 0; j < 2; j++) {
-		ATSPNode node = { asfloat(data.color[0][j]),
-			UnpackUnnormAlpha(data.color[0][2 + j]),
-			data.color[0][2 + j] & 0xFFFFFFUL };
-		nodeArray[j] = node;
+	[unroll]for (uint i = 0; i < AOIT_NODE_COUNT; i++) {
+		nodeArray[i].depth = _AOITSPDepthDataUAV[addr].depth[i];
+		UnpackRGBA16(_AOITSPColorDataUAV[addr].rg[i], _AOITSPColorDataUAV[addr].b_trans[i], nodeArray[i].color, nodeArray[i].trans);
 	}
-#else
-	data.depth = _AOITSPDepthDataUAV[addr];
-	[unroll]for (uint i = 0; i < AOIT_RT_COUNT; i++) {
-		[unroll]for (uint j = 0; j < 4; j++) {
-			ATSPNode node = { data.depth[i][j],
-				UnpackUnnormAlpha(data.color[i][j]),
-				data.color[i][j] & 0xFFFFFFUL };
-			nodeArray[4 * i + j] = node;
-		}
-	}
-#endif
 }
-#endif
 
-
-#ifdef dohdr
 void AOITSPStoreDataUAV(in uint2 pixelAddr, ATSPNode nodeArray[AOIT_NODE_COUNT])
 {
-	AOITSPData data;
 	uint addr = AOITAddrGenUAV(pixelAddr);
-
-#if AOIT_NODE_COUNT == 2
-	[unroll]for(uint j = 0; j < 2; j++) {
-		data.color[0][j] = asuint((asuint(float(nodeArray[j].depth)) & (uint)AOIT_TRANS_MASK) | ((uint)(nodeArray[j].trans)& uint(AOIT_MAX_UNNORM_TRANS)));
-		data.color[0][2 + j] = nodeArray[j].color;
+	[unroll]for (uint i = 0; i < AOIT_NODE_COUNT; i++) {
+		_AOITSPDepthDataUAV[addr].depth[i] = nodeArray[i].depth;
+		PackRGBA16(nodeArray[i].color, nodeArray[i].trans, _AOITSPColorDataUAV[addr].rg[i], _AOITSPColorDataUAV[addr].b_trans[i]);
 	}
-#else
-	[unroll]for(uint i = 0; i < AOIT_RT_COUNT; i++) {
-		[unroll]for(uint j = 0; j < 4; j++) {
-			data.depth[i][j] = asfloat((asuint(nodeArray[4 * i + j].depth) & (uint)AOIT_TRANS_MASK) | ((uint)(nodeArray[4 * i + j].trans)& uint(AOIT_MAX_UNNORM_TRANS)));
-			data.color[i][j] = (nodeArray[4 * i + j].color);
-		}
-	}
-	_AOITSPDepthDataUAV[addr] = data.depth;
-#endif
-
-	_AOITSPColorDataUAV[addr] = data.color;
 }
-#else
-void AOITSPStoreDataUAV(in uint2 pixelAddr, ATSPNode nodeArray[AOIT_NODE_COUNT])
-{
-	AOITSPData data;
-	uint addr = AOITAddrGenUAV(pixelAddr);
 
-#if AOIT_NODE_COUNT == 2
-	[unroll]for (uint j = 0; j < 2; j++) {
-		data.color[0][j] = asuint((asuint(float(nodeArray[j].depth)) & (uint)AOIT_TRANS_MASK) | (uint)(nodeArray[j].trans));
-		data.color[0][2 + j] = (nodeArray[j].color & 0xFFFFFFUL) |
-			(((uint)(nodeArray[j].trans)) << 24UL);
-	}
-#else
-	[unroll]for (uint i = 0; i < AOIT_RT_COUNT; i++) {
-		[unroll]for (uint j = 0; j < 4; j++) {
-			data.depth[i][j] = nodeArray[4 * i + j].depth;
-			data.color[i][j] = (nodeArray[4 * i + j].color & 0xFFFFFFUL) |
-				(((uint)(nodeArray[4 * i + j].trans)) << 24UL);
-		}
-	}
-	_AOITSPDepthDataUAV[addr] = data.depth;
-#endif
-
-	_AOITSPColorDataUAV[addr] = data.color;
-}
-#endif
 
 
 /////////////////////////////////////////////////////////////
@@ -665,7 +446,11 @@ void AOITStoreControlSurface(in uint2 pixelAddr, in AOITCtrlSurface surface)
 
 void WriteNewPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceColor)
 {	
-	if(surfaceColor.a <= 0.01)
+	//if(surfaceColor.a <= 0.01)
+	//	return;
+	if(surfaceColor.a < 1.0/65535.0)
+		return;
+	if(surfaceColor.a * surfaceColor.r < 1.0/65535.0 && surfaceColor.a * surfaceColor.g < 1.0/65535.0 && surfaceColor.a * surfaceColor.b < 1.0/65535.0)
 		return;
 	// From now on serialize all UAV accesses (with respect to other fragments shaded in flight which map to the same pixel)
 	ATSPNode nodeArray[AOIT_NODE_COUNT];    
@@ -680,15 +465,10 @@ void WriteNewPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceCol
 	if (ctrlSurface.clear) 
 	{			
 		// Clear AOIT data and initialize it with first transparent layer
-		AOITSPData data;
-		AOITSPClearData(data, surfaceDepth, surfaceColor);			
+		AOITSPClearData(nodeArray, surfaceDepth, surfaceColor);			
 
 		// Store AOIT data
-		uint addr = AOITAddrGenUAV(pixelAddr);
-#if AOIT_NODE_COUNT != 2
-		_AOITSPDepthDataUAV[addr] = data.depth;
-#endif
-		_AOITSPColorDataUAV[addr] = data.color;
+		AOITSPStoreDataUAV(pixelAddr, nodeArray);
 			
 		// Update control surface
         // ( depth and opaque flag can be used to branch out early if adding behind already near-opaque contents of AOIT )
@@ -721,7 +501,11 @@ void WriteNewPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceCol
 
 void WriteLightPixelToAOIT(float2 Position, float  surfaceDepth, float4 surfaceColor)
 {	
-	if(surfaceColor.a <= 0.01)
+	//if(surfaceColor.a <= 0.01)
+	//	return;
+	if(surfaceColor.a < 1.0/65535.0)
+		return;
+	if(surfaceColor.a * surfaceColor.r < 1.0/65535.0 && surfaceColor.a * surfaceColor.g < 1.0/65535.0 && surfaceColor.a * surfaceColor.b < 1.0/65535.0)
 		return;
 	// From now on serialize all UAV accesses (with respect to other fragments shaded in flight which map to the same pixel)
 	ATSPNode nodeArray[AOIT_NODE_COUNT];    
