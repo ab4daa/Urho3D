@@ -18,11 +18,6 @@
         <output index="1" name="AOITSPDepthData" />
         <output index="2" name="AOITSPColorData" />
     </command>
-    <command type="aoitlight" pass="aoitlight" >
-        <output index="0" name="AOITSPClearMask" />
-        <output index="1" name="AOITSPDepthData" />
-        <output index="2" name="AOITSPColorData" />
-    </command>
     <command type="quad" vs="AOIT_Resolve" ps="AOIT_Resolve" blend="aoitresolve" >
         <texture unit="0" name="AOITSPClearMask" />        
         <texture unit="1" name="AOITSPDepthData" />
