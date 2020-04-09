@@ -33,7 +33,11 @@ if (COMMAND cmake_policy)
     cmake_policy (SET CMP0042 NEW)
     # Honor the visibility properties for SHARED target types only
     cmake_policy (SET CMP0063 OLD)
+    # INTERPROCEDURAL_OPTIMIZATION 
+    cmake_policy (SET CMP0069 NEW)
 endif ()
+
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)  
 
 # Set project name
 project (Urho3D)
