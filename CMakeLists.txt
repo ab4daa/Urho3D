@@ -23,6 +23,8 @@
 # Set CMake minimum version
 cmake_minimum_required (VERSION 3.10.2)
 
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)  
+
 # Set project name
 project (Urho3D)
 
