@@ -1434,7 +1434,7 @@ void View::GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQ
         {
             // Transparent batches can not be instanced, and shadows on transparencies can only be rendered if shadow maps are
             // not reused
-            AddBatchToQueue(*alphaQueue, destBatch, tech, false, !renderer_->GetReuseShadowMaps());
+            AddBatchToQueue(*alphaQueue, destBatch, tech, true, !renderer_->GetReuseShadowMaps());
         }
     }
 }
