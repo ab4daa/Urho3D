@@ -119,6 +119,7 @@ void VS(float4 iPos : POSITION,
     #endif
 }
 
+[earlydepthstencil]
 void PS(float2 iTexCoord : TEXCOORD0,
     #ifdef SOFTPARTICLES
         float4 iScreenPos: TEXCOORD1,
